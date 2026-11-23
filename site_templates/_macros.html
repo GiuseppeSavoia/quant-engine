@@ -1,0 +1,64 @@
+{# Pezzi riusati dalle pagine. Numeri sempre con `fmt` (formato italiano, "–" se mancano);
+   variazioni con segno + freccia + colore, mai solo colore. #}
+
+{% macro na() %}<span class="na" aria-label="dato mancante">–</span>{% endmacro %}
+
+{% macro val(v, kind="num") -%}
+{%- if v is none %}{{ na() }}{% else %}{{ v | fmt(kind, **kwargs) }}{% endif -%}
+{%- endmacro %}
+
+{% macro delta(v, kind="pct", digits=none, currency=none) -%}
+{%- if v is none %}{{ na() }}{% else %}<span class="d {{ v | tone }}">{{ v | fmt(kind, arrow=true, digits=digits, currency=currency) }}</span>{% endif -%}
+{%- endmacro %}
+
+{% macro td(v, kind="num", cls="n") -%}
+<td class="{{ cls }}" data-v="{{ '' if v is none else v }}">{{ val(v, kind, **kwargs) }}</td>
+{%- endmacro %}
+
+{% macro td_delta(v, kind="pct", currency=none) -%}
+<td class="n" data-v="{{ '' if v is none else v }}">{{ delta(v, kind, currency=currency) }}</td>
+{%- endmacro %}
+
+{% macro badge(v, big=false) -%}
+{%- if v %}<span class="badge {{ v.tone }}{{ ' big' if big }}"><span class="sym" aria-hidden="true">{{ v.symbol }}</span>{{ v.label }}</span>
+{%- else %}<span class="badge off"><span class="sym" aria-hidden="true">?</span>Nessun giudizio</span>{% endif -%}
+{%- endmacro %}
+
+{% macro empty(what, why="") -%}
+<div class="empty" role="status"><strong>{{ what }}</strong>{% if why %}{{ why }}{% endif %}</div>
+{%- endmacro %}
+
+{% macro tk(ticker, root, linked=true) -%}
+{%- if linked %}<a class="tk" href="{{ root }}aziende/{{ ticker | slug }}.html">{{ ticker }}</a>{% else %}<span class="tk">{{ ticker }}</span>{% endif -%}
+{%- endmacro %}
+
+{% macro feed(items, root, limit=1000, id="") -%}
+<ul class="feed"{% if id %} id="{{ id }}"{% endif %}>
+{% for a in items[:limit] %}
+  <li data-kind="{{ a.kind }}">
+    <time datetime="{{ a.when }}">{{ a.when | fmt("date") }}</time>
+    <div>
+      <div class="t"><span class="tag k k-{{ a.kind }}">{{ a.kind_label }}</span>{% if a.href %}<a href="{{ root }}{{ a.href }}">{{ a.title }}</a>{% else %}{{ a.title }}{% endif %}</div>
+      <div class="x">{{ a.text }}</div>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+{%- endmacro %}
+
+{% macro chart(ch, caption) -%}
+{% if ch and ch.svg %}
+<figure class="card" style="margin:0">
+  <figcaption class="micro" style="margin-bottom:8px">{{ caption }}</figcaption>
+  <ul class="legend">
+    {% for s in ch.points.series %}<li><i class="{{ s.cls }}" aria-hidden="true"></i>{{ s.label }}</li>{% endfor %}
+  </ul>
+  <div class="chart-box" data-points="{{ ch.points | tojson_attr }}">
+    <div class="plot">{{ ch.svg | safe }}
+    {% for l in ch.labels %}<span class="cl {{ l.cls }}" aria-hidden="true" style="{% if l.top is defined %}top:{{ l.top | round(2) }}%{% else %}left:{{ l.left | round(2) }}%{% endif %}">{{ l.text }}</span>{% endfor %}
+    </div>
+  </div>
+  {{ caller() if caller }}
+</figure>
+{% endif %}
+{%- endmacro %}

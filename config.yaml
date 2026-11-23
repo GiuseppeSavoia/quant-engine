@@ -1,0 +1,442 @@
+# =====================================================================
+#  QUANT_ENGINE — configurazione unica del sistema
+#  Tutti i parametri modificabili stanno qui: niente numeri sparsi nel codice.
+#  Le chiavi mancanti prendono il valore di default da modules/config.py.
+# =====================================================================
+
+universe:
+  source: sp500             # sp500 = lista aggiornata da Wikipedia | list = solo i ticker qui sotto
+  tickers: [AAPL, MSFT, GOOGL, AMZN, META, TSLA, NVDA]   # usati solo con source: list
+  refresh_days: 7           # ogni quanto riscaricare la composizione dell'S&P 500
+  point_in_time_membership: true   # nel backtest usa solo i titoli già entrati nell'indice a quella data
+  membership: history       # history = composizione storica da Wikipedia (ex membri compresi) | date_added
+  benchmark: SPY            # mercato di riferimento: regime, beta, confronto backtest
+  risk_free_ticker: "^TNX"  # rendimento Treasury USA 10 anni (quotato in %)
+
+data:
+  db_path: data/finance_lake.db
+  history_years: 18            # profondità dello storico prezzi (aumentandola si scarica la parte mancante)
+  fundamentals_source: sec     # sec (ufficiale, con date di deposito) | yahoo
+  fundamentals_refresh_days: 7 # minimo tra due download dei bilanci di una stessa azienda...
+  fundamentals_max_age_days: 90  # ...e massimo (in mezzo si riscarica solo se è atteso un bilancio nuovo)
+  fundamentals_due_days: 130    # documento nuovo atteso: trimestre successivo (91 g) + tempo di deposito (~40 g)
+  price_chunk_size: 100        # ticker per richiesta a Yahoo
+  price_chunk_pause: 1.0       # secondi di pausa tra un blocco e l'altro
+  price_retries: 3
+  max_stale_days: 5            # oltre questo ritardo un prezzo è considerato vecchio
+  backup_dir: data/backups     # copia del database prima di ogni aggiornamento (al massimo una al giorno)
+  backup_keep: 3               # copie da tenere (con 18 anni di storico il database pesa ~330 MB); 0 = nessuno
+  # archivio di OGNI valore depositato nei 10-K e 10-Q (tutte le etichette XBRL, ~15 milioni di valori per
+  # l'S&P 500): file separato, escluso dai backup perché si riscarica dalla SEC
+  facts_db_path: data/sec_facts.db
+
+sec:
+  # OBBLIGATORIO per la SEC: nome e indirizzo email di contatto, es. "Mario Rossi mario@esempio.it"
+  user_agent: ""               # es. "Mario Rossi mario@esempio.it"
+  max_requests_per_second: 8   # limite SEC: 10
+  # altri CIK della stessa azienda, i cui bilanci vengono uniti a quelli del CIK principale.
+  # Serve quando un'azienda si riorganizza in una nuova holding: il CIK nuovo (quello su Wikipedia)
+  # non ha ancora 10-K, lo storico resta sul vecchio. Il controllo qualità "bilanci assenti" li segnala.
+  extra_ciks:
+    XOM: [34088]               # Exxon Mobil Corporation, prima della holding ExxonMobil Holdings Corp (2026)
+  # aziende con più classi di azioni: azioni dalla copertina dei 10-Q/10-K (l'API companyfacts non le riporta),
+  # convertite nella classe del ticker (fattore = quante azioni del ticker vale un'azione di quella classe; la
+  # chiave è cercata nel nome della classe). Visa e Ares no: conversioni variabili nel tempo / quote fuori borsa,
+  # per loro capitalizzazione e multipli restano vuoti.
+  share_classes:
+    BRK-B: {from: "2010-02-01", classes: {"class a": 1500, "class b": 1}}   # prima dello split 50:1 del 2010 A = 30 B
+    ERIE: {classes: {"class a": 1, "class b": 2400}}                        # una B si converte in 2.400 A
+    HSY: {classes: {"common": 1, "class b": 1}}                             # B convertibile 1:1
+    STZ: {classes: {"class a": 1, "class b": 1, "class 1": 1, "convertible": 1}}
+  # nuovi 10-Q/10-K: indice giornaliero della SEC (un file al giorno) + elenco degli ultimi depositi
+  filings_lookback_days: 30    # giorni controllati all'indietro (se il computer è rimasto spento)
+  filings_index_wait_days: 4   # un giorno lavorativo senza indice dopo N giorni è festivo
+  filings_current_pages: 10    # pagine da 100 dell'elenco "ultimi depositi" lette per i documenti di oggi
+  filings_give_up_days: 10     # deposito assente dall'API companyfacts dopo N giorni: "non nei dati SEC"
+
+# aziende europee: elenco da Wikipedia, bilanci annuali ESEF (filings.xbrl.org, dal 2021), prezzi Yahoo
+europe:
+  enabled: true
+  indices: ["FTSE MIB", "Euro Stoxx 50"]
+  refresh_days: 7                # ogni quanto rileggere l'elenco dei componenti
+  benchmark: "^STOXX50E"         # Euro Stoxx 50: beta delle europee (costo del capitale), al posto dell'SPY
+
+# bilanci di riserva da Yahoo SOLO dove SEC/ESEF mancano (tedesche, esercizi non ancora nell'archivio ESEF, voci
+# vuote): fonte "yahoo_fill", perde sempre contro le fonti primarie; filed = giorno del primo scarico
+yahoo_fundamentals:
+  enabled: true
+  max_age_days: 7                # copia locale in data/cache/yahoo_fin, riscaricata dopo questi giorni
+  stale_days: 450                # ultimo bilancio primario più vecchio di così: si completa con Yahoo
+  no_shares: ["V", "ARES"]       # azioni escluse apposta (classi con conversioni variabili / quote fuori borsa)
+
+# stime degli analisti (consenso): SOLO informazione (scheda, funzione Stime), mai nel giudizio né nei backtest.
+# Yahoo solo per le aziende seguite e nella pipeline; per il lavoro meglio l'import da CSV (pagina della scheda)
+estimates:
+  enabled: true
+  max_age_days: 3                # stime più vecchie di così: riscaricate all'aggiornamento
+  max_tickers: 60                # al massimo tanti titoli per aggiornamento (Yahoo limita le richieste)
+
+# portafoglio reale (inserito a mano nella pagina Portafoglio): con cosa confrontarlo. NON è `portfolio:` (più
+# sotto), che riguarda la strategia simulata: prima le chiavi si chiamavano uguali e questa veniva sovrascritta
+my_portfolio:
+  benchmark: SPY                 # simbolo Yahoo; per l'Italia ad esempio FTSEMIB.MI (benchmark_currency: EUR)
+  benchmark_currency: USD
+
+# dentro gli ETF del portafoglio (modules/etf.py): composizioni da Yahoo = SOLO le prime 10 posizioni + i settori
+# dell'intero fondo. Si scaricano col pulsante "Aggiorna composizioni" o quando la copia è scaduta.
+etf:
+  cache_dir: data/cache/etf      # relativa alla cartella del progetto (ignorata da git)
+  max_age_days: 30               # Yahoo aggiorna le composizioni circa una volta al mese
+  not_fund_max_age_days: 180     # un simbolo riconosciuto come azione si ricontrolla di rado
+  fetch_pause_seconds: 0.5       # pausa tra due simboli (Yahoo risponde "Too Many Requests")
+  top_n: 10                      # nomi nella concentrazione
+  aliases:                       # simbolo -> simbolo della stessa azienda (quotazioni con sigla propria)
+    NVD.DE: NVDA
+    APC.DE: AAPL
+    MSF.DE: MSFT
+    AMZ.DE: AMZN
+
+# pagina Monitor: striscia dei mercati (simbolo Yahoo -> nome), quotazioni con ~15 minuti di ritardo
+# grafico dei prezzi nella scheda azienda (funzione GP)
+price_chart:
+  monthly_after_years: 6         # periodo MAX più lungo di così: candele mensili invece che settimanali
+  max_missing_open: 0.02         # oltre il 2% di sedute senza apertura/massimo/minimo: solo linea
+  fair_value_range: [0.5, 2.0]   # fair value e scenari disegnati solo tra 0,5x il minimo e 2x il massimo del periodo
+
+monitor:
+  symbols:
+    "^GSPC": "S&P 500"
+    "^IXIC": "NASDAQ"
+    "^DJI": "DOW JONES"
+    "^RUT": "RUSSELL 2000"
+    "^VIX": "VIX"
+    "^TNX": "TASSO USA 10A"
+    "DX-Y.NYB": "DOLLARO"
+    "EURUSD=X": "EUR/USD"
+    "GC=F": "ORO"
+    "CL=F": "PETROLIO"
+    "BTC-USD": "BITCOIN"
+  rates: ["^TNX"]                # rendimenti: variazione in punti base, non in %
+  refresh_open_seconds: 300      # titoli dell'S&P 500 riscaricati ogni 5 minuti a mercato aperto
+  refresh_closed_seconds: 3600
+  news_days: 3                   # 8-K mostrati nel Monitor
+  # borse mondiali (pannello del Monitor e barra in fondo): codice di modules/exchanges.py -> [simbolo Yahoo, indice]
+  exchanges:
+    NYSE: ["^GSPC", "S&P 500"]
+    TSX: ["^GSPTSE", "S&P/TSX"]
+    LSE: ["^FTSE", "FTSE 100"]
+    XETRA: ["^GDAXI", "DAX"]
+    EPA: ["^FCHI", "CAC 40"]
+    MIL: ["FTSEMIB.MI", "FTSE MIB"]
+    SIX: ["^SSMI", "SMI"]
+    TSE: ["^N225", "NIKKEI 225"]
+    HKEX: ["^HSI", "HANG SENG"]
+    SSE: ["000001.SS", "SHANGHAI COMP."]
+    ASX: ["^AXJO", "ASX 200"]
+
+# notizie (pagina Notizie, modules/news.py): solo feed RSS/Atom pubblici e gratuiti; si mostrano titolo, fonte, ora e
+# link all'articolo originale. Ritardo tipico rispetto all'evento: 1-15 minuti (non è un flusso professionale).
+# Feed provati il 2026-11-13: tenuti solo quelli che rispondevano con notizie fresche. group: mercati, comunicati,
+# banche centrali, italia (filtro "fonte" nella pagina). every: secondi tra due letture (default every_seconds).
+news:
+  enabled: true
+  every_seconds: 120           # feed generali
+  pause_seconds: 1.0           # pausa tra due richieste
+  keep_days: 3                 # notizie tenute in data/cache/news/ (al riavvio la giornata resta)
+  ui_refresh_seconds: 30       # ogni quanto la pagina rilegge la memoria
+  # account X mostrati con il riquadro ufficiale incorporabile (gratis, nessuna API, nessuna raccolta dei post).
+  # Elenco iniziale: dalla pagina Notizie (scheda X) si aggiungono/tolgono, e la scelta resta in data/preferenze_x.json
+  x_accounts: []
+  x_height: 600                # altezza in pixel di ogni riquadro
+  feeds:
+    - {name: "CNBC", url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", lang: en, group: mercati}
+    - {name: "CNBC Finance", url: "https://www.cnbc.com/id/10000664/device/rss/rss.html", lang: en, group: mercati}
+    - {name: "CNBC Earnings", url: "https://www.cnbc.com/id/15839135/device/rss/rss.html", lang: en, group: mercati}
+    - {name: "CNBC Economy", url: "https://www.cnbc.com/id/20910258/device/rss/rss.html", lang: en, group: mercati, every: 300}
+    - {name: "MarketWatch", url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", lang: en, group: mercati}
+    - {name: "Investing.com", url: "https://www.investing.com/rss/news_25.rss", lang: en, group: mercati}
+    - {name: "Investing.com Economia", url: "https://www.investing.com/rss/news_14.rss", lang: en, group: mercati}
+    - {name: "Seeking Alpha", url: "https://seekingalpha.com/market_currents.xml", lang: en, group: mercati}
+    - {name: "Nasdaq", url: "https://www.nasdaq.com/feed/rssoutbound?category=Markets", lang: en, group: mercati, every: 300}
+    - {name: "FT Markets", url: "https://www.ft.com/markets?format=rss", lang: en, group: mercati, every: 300}
+    - {name: "BBC Business", url: "https://feeds.bbci.co.uk/news/business/rss.xml", lang: en, group: mercati, every: 300}
+    - {name: "Google News Business", url: "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en", lang: en, group: mercati, every: 300}
+    - {name: "PR Newswire", url: "https://www.prnewswire.com/rss/news-releases-list.rss", lang: en, group: comunicati}
+    - {name: "Business Wire Earnings", url: "https://feed.businesswire.com/rss/home/?rss=G1QFDERJXkJeEF9YXA==", lang: en, group: comunicati}
+    - {name: "Fed", url: "https://www.federalreserve.gov/feeds/press_all.xml", lang: en, group: banche centrali, every: 300}
+    - {name: "BCE", url: "https://www.ecb.europa.eu/rss/press.html", lang: en, group: banche centrali, every: 300}
+    - {name: "SEC comunicati", url: "https://www.sec.gov/news/pressreleases.rss", lang: en, group: banche centrali, every: 600}
+    - {name: "ANSA Economia", url: "https://www.ansa.it/sito/notizie/economia/economia_rss.xml", lang: it, group: italia}
+    - {name: "Il Sole 24 Ore Finanza", url: "https://www.ilsole24ore.com/rss/finanza.xml", lang: it, group: italia, every: 300}
+    - {name: "Il Sole 24 Ore Economia", url: "https://www.ilsole24ore.com/rss/economia.xml", lang: it, group: italia, every: 300}
+    - {name: "Repubblica Economia", url: "https://www.repubblica.it/rss/economia/rss2.0.xml", lang: it, group: italia, every: 300}
+    - {name: "Google News Economia", url: "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=it&gl=IT&ceid=IT:it", lang: it, group: italia, every: 300}
+  # feed per azienda: le mie aziende e i titoli in portafoglio. Yahoo per tutti; per i simboli europei (ENI.MI, MC.PA)
+  # anche Google News con il nome, perché il feed Yahoo dei titoli europei resta fermo anche per giorni
+  company:
+    every_seconds: 900
+    yahoo_url: "https://feeds.finance.yahoo.com/rss/2.0/headline?s={symbol}&region=US&lang=en-US"
+    google_url: "https://news.google.com/rss/search?q={query}+when:7d&hl=it&gl=IT&ceid=IT:it"
+    google_url_us: "https://news.google.com/rss/search?q={query}+when:7d&hl=en-US&gl=US&ceid=US:en"
+    google_for_us: false         # true = Google News anche per le aziende USA (più notizie, più rumore)
+  # altri nomi con cui un'azienda compare nei titoli (il nome ufficiale e il ticker si riconoscono da soli)
+  aliases:
+    GOOGL: [Google, Alphabet]
+    META: [Meta, Facebook, Instagram]
+    BRK-B: [Berkshire, Berkshire Hathaway]
+    JPM: [JPMorgan, JP Morgan]
+    GS: [Goldman, Goldman Sachs]
+    MS: [Morgan Stanley]
+    BAC: [Bank of America, BofA]
+    KO: [Coca-Cola]
+    WMT: [Walmart]
+    TGT: [Target Corp]
+    UNH: [UnitedHealth]
+    XOM: [Exxon, ExxonMobil]
+    CVX: [Chevron]
+    NVDA: [Nvidia]
+    TSLA: [Tesla]
+    AMZN: [Amazon]
+    MSFT: [Microsoft]
+    AAPL: [Apple]
+    NFLX: [Netflix]
+    DIS: [Disney]
+
+# aggiornamento automatico (launchd sul Mac): si attiva dalla webapp o con tools/schedule.py
+schedule:
+  after_close_minutes: 30      # minuti dopo la chiusura di Wall Street (16:00 a New York)
+  check_every_minutes: 60      # se il Mac era spento o in stop, recupera appena si riaccende
+  args: []                     # argomenti di main.py per l'aggiornamento automatico (es. ["--backtest"])
+
+valuation:
+  equity_risk_premium: 0.05
+  risk_free_fallback: 0.042    # usato se ^TNX non è disponibile
+  terminal_growth: 0.025
+  projection_years: 10         # la crescita sfuma linearmente verso quella terminale
+  min_growth: 0.0
+  max_growth: 0.15
+  default_growth: 0.05         # se lo storico del FCF non basta per stimarla
+  wacc_floor: 0.06
+  beta_window_days: 504        # 2 anni di rendimenti giornalieri
+  default_tax_rate: 0.21
+  max_fcf_lag_days: 400        # FCF più vecchio di così rispetto all'ultimo bilancio: niente DCF
+  skip_sectors: [Financials]   # banche/assicurazioni: il DCF sul free cash flow non è significativo
+  # costo del capitale alla Damodaran (valutazione a leve della scheda azienda; il DCF della strategia originale
+  # resta com'era): beta di settore, rating sintetico, premio implicito dell'S&P 500
+  marginal_tax_rate: 0.25      # aliquota marginale USA (federale 21% + statali) per il debito e i beta
+  erp_growth: 0.05             # crescita dei flussi agli azionisti dell'indice nei prossimi 5 anni (premio implicito)
+  beta_years: 5                # anni di rendimenti settimanali per i beta (2 anni: troppo rumore, es. KO a 0,09)
+  min_industry_peers: 10       # sotto-settori più piccoli: si usa il settore (mediane su pochi titoli = rumore)
+  rnd_min_intensity: 0.03      # R&S sopra il 3% dei ricavi: trattata come investimento
+  rnd_life_years:              # anni di ammortamento della R&S capitalizzata (Damodaran: dipende dal settore)
+    default: 5
+    Information Technology: 3
+    Communication Services: 3
+    Health Care: 10
+  synthetic_ratings:           # copertura degli interessi minima -> rating -> spread (aggiornare ogni anno)
+    - [8.5, AAA, 0.0059]
+    - [6.5, AA, 0.0078]
+    - [5.5, A+, 0.0108]
+    - [4.25, A, 0.0122]
+    - [3.0, A-, 0.0133]
+    - [2.5, BBB, 0.0171]
+    - [2.25, BB+, 0.0231]
+    - [2.0, BB, 0.0277]
+    - [1.75, B+, 0.0405]
+    - [1.5, B, 0.0486]
+    - [1.25, B-, 0.0594]
+    - [0.8, CCC, 0.0946]
+    - [0.65, CC, 0.12]
+    - [0.2, C, 0.16]
+    - [-1000000000, D, 0.19]
+
+regime:
+  n_states: 3                  # Bear / Neutral / Bull
+  lookback_days: 756           # 3 anni di storia per addestrare l'HMM
+  vol_window: 20
+  min_observations: 250
+
+multi_factor:
+  # Il fattore Value NON è qui: è già nel margine di sicurezza della confidenza.
+  weights: {momentum: 0.35, quality: 0.45, volatility: 0.20}
+
+confidence:
+  weights: {regime: 0.30, value: 0.40, multi_factor: 0.30}
+  full_value_margin: 0.30      # margine di sicurezza che vale il punteggio pieno
+  thresholds: {Bull: 0.50, Neutral: 0.65, Bear: 0.80}
+  default_threshold: 0.65
+
+safety:
+  max_daily_vol: 0.05          # volatilità giornaliera massima negli ultimi 5 giorni
+  outlier_sigma: 3.0           # ultimo rendimento oltre 3 deviazioni standard = anomalia
+  min_history_days: 20
+
+portfolio:
+  method: risk_parity          # risk_parity | min_variance | equal
+  max_weight: 0.20             # peso massimo per singolo titolo (il resto resta liquido)
+  max_positions: 25            # tra i BUY si tengono i migliori 25 per confidenza
+  lookback_days: 252
+
+insiders:
+  # operazioni degli insider (Form 4, SEC): dataset trimestrali per tutte le aziende + Form 4 recenti di quelle seguite
+  history_quarters: 12         # trimestri caricati al primo `python main.py --insiders` (8-15 MB l'uno)
+  window_days: 90              # finestra delle metriche "acquisti degli insider negli ultimi N giorni"
+  alert_min_value: 100000      # avviso in home se gli insider di un'azienda seguita comprano almeno questo ($)...
+  alert_days: 30               # ...in questi giorni
+
+superinvestors:
+  # portafogli trimestrali (13F) di grandi investitori; CIK verificati sulla SEC il 2026-11-02
+  history_quarters: 54         # dal 2013: prima i 13F non erano in XML (servono al backtest della strategia Pabrai)
+  funds:
+    - {name: "Berkshire Hathaway (Buffett)", cik: 1067983}
+    - {name: "Pershing Square (Ackman)", cik: 1336528}
+    - {name: "Baupost (Klarman)", cik: 1061768}
+    - {name: "Appaloosa (Tepper)", cik: 1656456}
+    - {name: "Third Point (Loeb)", cik: 1040273}
+    - {name: "Akre Capital", cik: 1112520}
+    - {name: "Himalaya Capital (Li Lu)", cik: 1709323}
+    - {name: "H&H International (Duan Yongping)", cik: 1759760}
+    - {name: "Tweedy Browne", cik: 732905}
+    - {name: "Icahn", cik: 921669}
+    - {name: "Fundsmith (Terry Smith)", cik: 1569205}
+    - {name: "Polen Capital", cik: 1034524}
+    - {name: "Markel", cik: 1096343}
+    - {name: "Gardner Russo & Quinn", cik: 860643}
+    - {name: "Oaktree", cik: 949509}
+    - {name: "Lone Pine", cik: 1061165}
+    - {name: "Tiger Global", cik: 1167483}
+    - {name: "Duquesne (Druckenmiller)", cik: 1536411}
+    - {name: "Elliott", cik: 1791786}
+    - {name: "Dodge & Cox", cik: 200217}
+    - {name: "First Eagle", cik: 1325447}
+    - {name: "ValueAct", cik: 1418814}
+
+public_site:
+  # sito pubblico statico in sola lettura (modules/public_site.py; .venv/bin/python tools/build_site.py)
+  enabled: false               # true = rigenerato a fine aggiornamento serale
+  out_dir: build/sito
+  base_url: ""                 # indirizzo pubblico, es. https://nome.github.io/registro/ (link dei feed RSS)
+  title: "Registro Aperto"
+  author: ""                   # come firmi il sito (compare in fondo alle pagine)
+  tagline: "Le scelte di un investitore privato, con i numeri e gli errori in chiaro."
+  intro: |
+    Qui pubblico quello che compro, vendo e guardo, con il perché e con il risultato misurato contro l'indice, anche quando ho sbagliato. I giudizi sulle aziende vengono da regole scritte in anticipo e applicate ai bilanci depositati alla SEC.
+    Non è una raccomandazione d'investimento: è il diario pubblico di una persona.
+  funds: []                    # nomi o CIK dei fondi qui sopra da mostrare; vuoto = tutti
+  alerts_days: 400             # avvisi più vecchi non compaiono
+  feed_items: 50
+
+watchlist:
+  # avvisi della home "Le mie aziende" (webapp)
+  new_filing_days: 14          # bilancio depositato negli ultimi N giorni = "nuovo"
+  big_move_1m: 0.15            # movimento del prezzo in un mese da segnalare (in su o in giù)
+  drawdown_alert: -0.25        # distanza dal massimo a 52 settimane da segnalare
+  margin_drop: 0.03            # calo del margine operativo (punti) rispetto a un anno prima
+  near_fair_value: 0.05        # prezzo entro il 5% sopra il tuo fair value = "vicino"
+
+alerts:
+  # motore di avvisi con storico (modules/alerts.py): valutato a fine aggiornamento (main.py) per le aziende seguite,
+  # quelle in portafoglio e quelle con una soglia di prezzo; un avviso non si ripete finché la condizione resta vera
+  enabled: true
+  # PX- prezzo sotto la tua soglia d'acquisto, PX+ sopra quella di vendita, FV sotto il tuo fair value, CHG nuovo
+  # bilancio con cambi rilevanti, INS acquisti degli insider, MOV movimento forte in un mese, MOV1 in un giorno,
+  # REV revisione scaduta (scheda di ricerca o diario), 8K evento grave; aggiungibili: FV~, 52S, MRG, DOC
+  # VRD giudizio cambiato (storico dei giudizi, modules/verdict_history.py)
+  codes: [PX-, PX+, FV, CHG, INS, MOV, MOV1, REV, 8K, VRD]
+  fair_value_margin: 0.0       # FV quando fair value / prezzo - 1 >= questo margine (0.15 = 15% di sconto)
+  new_filing_days: 14          # CHG solo per bilanci depositati negli ultimi N giorni
+  big_move_1m: 0.15            # MOV: movimento in un mese (in su o in giù)
+  big_move_1d: 0.07            # MOV1: movimento in un giorno
+  event_days: 7                # 8K: eventi gravi depositati negli ultimi N giorni
+  insider_days: 30             # INS: acquisti sul mercato depositati negli ultimi N giorni...
+  insider_min_value: 100000    # ...per almeno questo valore ($)
+  summary_lines: 3             # quante variazioni del bilancio nel testo dell'avviso CHG
+  thesis_gap: 0.03             # realizzato sotto la tua ipotesi di oltre N punti = "sotto la tua ipotesi"
+  change_thresholds: {}        # soglie di "cambio rilevante" (modules/changes.py DEFAULT_THRESHOLDS), es. revenue: 0.05
+  verdict_days: 30             # VRD resta attivo finché dura il nuovo giudizio, al massimo N giorni dal cambio
+  verdict_nodata_days: 3       # "Dati insufficienti" avvisato solo se dura N date dei dati di fila (sennò è un buco)
+  verdict_min_pillar_change: 0.01  # pilastri citati nel messaggio solo se cambiati almeno di tanto
+
+verdict:
+  # soglie, pesi e regole del giudizio: default in modules/verdict.py (DEFAULTS), sovrascrivibili qui
+  history:                     # storico dei giudizi scritto a fine aggiornamento (modules/verdict_history.py)
+    enabled: true
+    keep_rule_days: 30         # testo della regola solo per gli ultimi N giorni (categoria e punteggi per sempre)
+  tracking:                    # misura in avanti (modules/verdict_tracking.py, tools/verdict_tracking.py)
+    min_age_days: 21           # solo giudizi salvati da almeno N giorni
+    min_independent_periods: 20  # sotto: la misura "non dice nulla" (avvertenza nel rapporto)
+
+risk:
+  # limiti applicati ai pesi dopo l'ottimizzatore (modules/risk.py), nell'analisi e nel backtest
+  # verificati su entrambe le metà 2012-2026 (fattori e originale): il tetto per settore non costa nulla;
+  # volatilità obiettivo 15% e limite di perdita -15% hanno peggiorato rendimento E Sharpe in entrambe,
+  # e il limite di perdita non ha nemmeno ridotto il drawdown massimo. Restano provabili nel Laboratorio.
+  max_sector_weight: 0.30      # tetto per settore (1.0 = nessuno); l'eccesso va agli altri settori o resta liquido
+  target_volatility: 0.0       # volatilità annua obiettivo del portafoglio (0 = nessuna); mai leva
+  vol_lookback_days: 63        # giorni di rendimenti per stimare la volatilità (3 mesi: reagisce in fretta)
+  drawdown_limit: 0.0          # es. -0.15: oltre questa perdita dal massimo si riduce l'esposizione (0 = no)
+  drawdown_exposure: 0.5       # quota dei pesi mantenuta quando scatta il limite di perdita
+  # misure e prove di stress (solo report e webapp)
+  report_lookback_days: 252
+  var_confidence: 0.95
+  market_shock: -0.20
+  sector_shock: -0.30
+  stress_scenarios:            # crisi passate: [inizio, fine]; i prezzi partono da novembre 2008
+    "Crisi finanziaria (nov 2008 - mar 2009)": ["2008-11-04", "2009-03-09"]
+    "Debito USA 2011": ["2011-07-22", "2011-10-03"]
+    "Vendite di fine 2018": ["2018-09-20", "2018-12-24"]
+    "Covid 2020": ["2020-02-19", "2020-03-23"]
+    "Inflazione e tassi 2022": ["2022-01-03", "2022-10-12"]
+
+execution:
+  capital: 100000
+  atr_period: 14
+  stop_loss_atr: 2.0
+  take_profit_atr: 3.0
+  limit_order_vol: 0.30        # sopra questa volatilità annua si usa un ordine LIMIT
+  min_dollar_volume: 1000000
+  max_slippage: 0.005
+
+quality:
+  # controlli sui dati a ogni analisi (report + quality_<run>.csv)
+  max_missing_days: 10         # giorni di borsa senza prezzo nell'ultimo anno oltre cui avvisare
+  max_daily_jump: 0.40         # variazione giornaliera oltre cui avvisare (split non rettificato o dato errato)
+  max_filing_age_days: 450     # ultimo bilancio depositato da più di ~15 mesi
+  max_shares_change: 3.0       # azioni che cambiano più di 3 volte tra due esercizi: split non registrato?
+  min_period_items_share: 0.6  # ultimo periodo con meno del 60% delle voci ufficiali del precedente (10-K di base assente?)
+
+research:
+  # python main.py --research: ogni segnale prevede i rendimenti futuri?
+  years: 3                     # periodo analizzato (se `start` è vuoto)
+  start: "2012-01-01"          # inizio fisso: composizione storica affidabile dal 2010-2011
+  step_days: 21                # una data di analisi ogni 21 giorni di borsa
+  horizons: [5, 21, 63, 126]   # orizzonti dei rendimenti futuri (giorni di borsa)
+  n_quantiles: 5               # titoli divisi in 5 gruppi per punteggio
+  min_names: 20                # titoli minimi con punteggio per usare una data
+  t_strong: 3.0                # t-stat per dire "solido" (alto per via dei test multipli)
+  t_weak: 2.0                  # t-stat per dire "promettente"
+
+strategy:
+  mode: confidence             # confidence = strategia originale | factors = combinazione dei fattori classici
+  factor_weights: {}           # per mode: factors; i pesi suggeriti li stampa `python main.py --factors`
+  # run_on_update: false       # strategia automatica originale (regime, ordini simulati) a ogni aggiornamento: di
+  #                            # norma no (python main.py --strategy o pagina Strategia automatica). Lasciato come
+  #                            # commento: una chiave nuova qui cambierebbe l'impronta di tutti i risultati salvati
+
+factors:
+  # python main.py --factors: fattori classici (valore, qualità, momentum, rischio...) e combinazione
+  weight_horizon: 21           # orizzonte (giorni) su cui si misurano gli IC per scegliere i pesi
+  min_t: 0.0                   # nella combinazione solo i fattori con IC positivo e t-stat almeno così
+  # misurati ma fuori dalla combinazione: l'inversione a un mese cambia quasi tutto il portafoglio ogni mese
+  # (rotazione 19x/anno contro 6x senza) e i costi si mangiano il vantaggio
+  exclude: [reversal_1m]
+  max_statement_age_days: 550  # bilanci più vecchi di così (fine esercizio): fattori di bilancio vuoti
+
+backtest:
+  years: 2                     # usato solo se `start` è vuoto
+  start: "2012-01-01"          # backtest lungo: la composizione storica dell'indice è affidabile dal 2010-2011
+  rebalance_days: 21           # ribilanciamento circa mensile
+  commission: 0.001
+  slippage: 0.0005
+  min_trade_pct: 0.005         # nei ribilanciamenti ignora aggiustamenti sotto lo 0,5% del portafoglio
+  use_exits: true              # stop-loss / take-profit giornalieri basati sull'ATR

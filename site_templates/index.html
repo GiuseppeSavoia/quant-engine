@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set p = ctx.portfolio %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ site.title }}</h1>
+  <p class="lead">{{ site.tagline }}</p>
+</div>
+
+<section aria-labelledby="h-port" style="margin-top:8px">
+  <h2 id="h-port" class="sr">Il portafoglio in breve</h2>
+  {% if p.status == "ok" %}
+  {% set k = p.kpi %}
+  <div class="hero card">
+    <div>
+      <div class="key-label">Valore del portafoglio</div>
+      <div class="key">{{ m.val(k.value, "money", currency="EUR") }}</div>
+      <div class="key-sub">Guadagno {{ m.delta(k.gain, "money", currency="EUR") }} · rendimento {{ m.delta(k.twr, "pct") }} <abbr title="rendimento ponderato nel tempo: versamenti e vendite non contano come guadagno">pond. nel tempo</abbr></div>
+    </div>
+    <div class="kpis" role="list">
+      <div class="kpi" role="listitem"><div class="micro">Investito netto</div><div class="v">{{ m.val(k.invested, "money", currency="EUR") }}</div><div class="s">acquisti meno vendite</div></div>
+      <div class="kpi" role="listitem"><div class="micro">Stessi euro nell'indice</div><div class="v">{{ m.val(k.bench_value, "money", currency="EUR") }}</div><div class="s">{{ p.benchmark }}, stessi giorni</div></div>
+      <div class="kpi" role="listitem"><div class="micro">Contro l'indice</div><div class="v">{{ m.delta(k.vs_bench, "money", currency="EUR") }}</div><div class="s">indice {{ m.delta(k.bench_twr, "pct") }}, io {{ m.delta(k.twr, "pct") }}</div></div>
+      <div class="kpi" role="listitem"><div class="micro">Posizioni</div><div class="v">{{ k.positions }}</div><div class="s">dal {{ k.since | fmt("date") }}</div></div>
+    </div>
+  </div>
+  <p class="small muted" style="margin-top:8px">Il confronto mette gli stessi euro nell'indice negli stessi giorni di acquisti e vendite. Dividendi esclusi. <a href="portafoglio.html">Tutto il portafoglio</a></p>
+  {% else %}
+  {{ m.empty("Il portafoglio è ancora vuoto.", " Quando registrerò il primo acquisto, qui compariranno valore, guadagno e confronto con l'indice.") }}
+  {% endif %}
+</section>
+
+<div class="grid2">
+<section aria-labelledby="h-dec">
+  <h2 id="h-dec">Ultime decisioni <a class="more" href="decisioni.html">Tutte le decisioni</a></h2>
+  {% set dec = ctx.decisions %}
+  {% if dec.entries %}
+  <div class="card">
+    {% if dec.hit.judged %}<p class="small" style="margin-bottom:8px">Tasso di successo: <strong>{{ dec.hit.right }} su {{ dec.hit.judged }}</strong> ({{ m.val(dec.hit.rate, "pct", digits=0) }}) tra le decisioni con almeno {{ dec.min_days }} giorni.</p>{% endif %}
+    <ul class="plain">
+    {% for x in dec.entries[:5] %}
+      <li><span class="muted small">{{ x.date | fmt("date") }}</span> · <strong>{{ x.action_label }}</strong> {{ m.tk(x.ticker, root, x.ticker in followed) }} <span class="small muted">{{ x.name }}</span><br><span class="small">{{ x.reason }}</span></li>
+    {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  {{ m.empty("Nessuna decisione registrata.", " Ogni acquisto, vendita o «non compro» comparirà qui con il motivo.") }}
+  {% endif %}
+</section>
+
+<section aria-labelledby="h-alerts">
+  <h2 id="h-alerts">Ultimi avvisi <a class="more" href="avvisi.html">Tutti gli avvisi</a></h2>
+  {% if ctx.alerts %}
+  <div class="card">{{ m.feed(ctx.alerts, root, 6) }}</div>
+  {% else %}
+  {{ m.empty("Nessun avviso recente.") }}
+  {% endif %}
+</section>
+</div>
+
+<section aria-labelledby="h-co">
+  <h2 id="h-co">Aziende seguite <a class="more" href="aziende.html">Elenco completo</a></h2>
+  {% if ctx.companies %}
+  <div class="table-wrap">
+  <table class="data">
+    <caption class="sr">Aziende seguite con il giudizio</caption>
+    <thead><tr><th scope="col">Titolo</th><th scope="col">Giudizio</th><th scope="col">Possiedo</th></tr></thead>
+    <tbody>
+    {% for c in ctx.companies[:8] %}
+      <tr><td>{{ m.tk(c.ticker, root) }} <span class="muted small">{{ c.name }}</span></td><td>{{ m.badge(c.verdict) }}</td><td>{% if c.owned %}<span class="tag owned">Sì</span>{% else %}<span class="muted">No</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  {{ m.empty("Nessuna azienda seguita.") }}
+  {% endif %}
+</section>
+
+<section aria-labelledby="h-about">
+  <h2 id="h-about">Cosa trovi qui</h2>
+  <div class="prose">
+    {% for para in site.intro %}<p>{{ para }}</p>{% endfor %}
+    <p class="small muted">Il giudizio automatico sulle aziende è una lista di controllo ragionata, non un segnale provato: nella prova storica le aziende «candidate» non hanno battuto l'indice. <a href="metodo.html">Come funziona e cosa non sa fare</a>.</p>
+  </div>
+</section>
+{% endblock %}

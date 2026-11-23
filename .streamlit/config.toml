@@ -1,0 +1,43 @@
+[theme]
+# Aspetto "Terminale" (predefinito): fondo nero, ambra per etichette e tasto attivo, angoli vivi. Testo corrente in
+# sans-serif di sistema; il monospazio (numeri, tabelle, codici, ticker, barra dei comandi) lo mette il CSS di
+# ui/common.py (docs/revisione_grafica.md §3). Il selettore "Aspetto" nel menu "Dati" (Segui il sistema, Scuro, Chiaro)
+# passa all'aspetto chiaro quando serve: ui/common._apply_theme cambia queste opzioni mentre gira e ricorda la scelta in
+# data/preferenze_interfaccia.json. Niente [theme.light]/[theme.dark] qui: con quelle sezioni Streamlit sceglierebbe il
+# tema nel browser e il codice Python (colori dei grafici, CSS) non saprebbe quale è attivo; "Segui il sistema" legge
+# prefers-color-scheme dal browser con un cookie (ui/common.scheme_script).
+base = "dark"
+primaryColor = "#ffa028"
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#141414"
+textColor = "#e8e6e1"
+linkColor = "#ffa028"
+borderColor = "#5c5c5c"   # bordo dei controlli: 3,1:1 sul nero (>= 3:1)
+showWidgetBorder = true
+baseRadius = "none"
+buttonRadius = "none"
+font = "sans-serif"
+headingFont = "sans-serif"
+codeFont = "monospace"
+baseFontSize = 14
+dataframeBorderColor = "#2a2a2a"
+dataframeHeaderBackgroundColor = "#1a1a1a"
+dataframeHeaderTextColor = "#a8a59c"   # intestazioni grigie: l ambra solo per ciò che è attivo
+greenColor = "#2fbf4a"
+redColor = "#ff5a52"
+orangeColor = "#ffa028"
+blueColor = "#3987e5"
+# palette dei grafici validata sul fondo nero (ambra, blu, arancio, viola, acqua): stessi valori di ui/common.SERIES
+chartCategoricalColors = ["#c98500", "#3987e5", "#d95926", "#9085e9", "#199e70"]
+
+[theme.sidebar]
+backgroundColor = "#0a0a0a"
+secondaryBackgroundColor = "#141414"
+textColor = "#e8e6e1"
+
+[client]
+# niente "Deploy" né menu per sviluppatori: app locale per un solo utente
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

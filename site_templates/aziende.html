@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Aziende seguite · {{ site.title }}{% endblock %}
+{% block description %}Le aziende che seguo, con il giudizio automatico, le prove e la mia tesi.{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Aziende seguite</h1>
+  <p>Le aziende che possiedo o che sto guardando. Il giudizio applica le stesse regole a tutte, fissate in anticipo; ogni pagina mostra le prove una per una. <a href="metodo.html">Come si legge il giudizio</a>.</p>
+</div>
+{% if ctx.companies %}
+<div class="table-wrap">
+<table class="data sortable">
+  <caption class="sr">Aziende seguite: tocca un'intestazione per ordinare</caption>
+  <thead><tr>
+    <th scope="col">Titolo</th><th scope="col">Giudizio</th><th scope="col" class="n">Qualità</th><th scope="col" class="n">Solidità</th>
+    <th scope="col" class="n">Prezzo</th><th scope="col" class="n">Allarmi</th><th scope="col">Possiedo</th><th scope="col">Ultimo bilancio</th>
+  </tr></thead>
+  <tbody>
+  {% for c in ctx.companies %}
+    {% set sc = c.verdict.scores if c.verdict else {"quality": none, "solidity": none, "price": none, "flags": none} %}
+    <tr>
+      <td data-v="{{ c.ticker }}">{{ m.tk(c.ticker, root) }} <span class="muted small">{{ c.name }}</span></td>
+      <td data-v="{{ loop.index }}">{{ m.badge(c.verdict) }}</td>
+      {{ m.td(sc.quality, "score") }}{{ m.td(sc.solidity, "score") }}{{ m.td(sc.price, "score") }}{{ m.td(sc.flags, "score") }}
+      <td data-v="{{ 1 if c.owned else 0 }}">{% if c.owned %}<span class="tag owned">Sì</span>{% else %}<span class="muted">No</span>{% endif %}</td>
+      <td data-v="{{ c.changes.filed or '' }}">{% if c.changes.form %}{{ c.changes.form }} · {{ c.changes.filed | fmt("date") }}{% else %}{{ m.na() }}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="small muted" style="margin-top:8px">Punteggi da 0 a 1: più alto è meglio (anche per «Allarmi»: 1 = nessun allarme).</p>
+{% else %}
+{{ m.empty("Nessuna azienda seguita.", " Le aziende che seguo, possiedo o di cui ho scritto una decisione compariranno qui.") }}
+{% endif %}
+{% endblock %}

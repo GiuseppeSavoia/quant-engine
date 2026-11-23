@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set v = c.verdict %}
+{% block title %}{{ c.ticker }} {{ c.name }} · {{ site.title }}{% endblock %}
+{% block description %}{{ c.ticker }}: giudizio {{ v.label if v else "non disponibile" }}, prove, tesi e cosa è cambiato all'ultimo bilancio.{% endblock %}
+{% block feeds %}<link rel="alternate" type="application/rss+xml" title="{{ site.title }}: {{ c.ticker }}" href="{{ c.slug }}.xml">{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="crumbs"><a href="../aziende.html">Aziende seguite</a> / {{ c.ticker }}</div>
+  <h1><span class="mono">{{ c.ticker }}</span> {{ c.name }}</h1>
+  <p class="small">{{ c.sector }}{% if c.sub_industry %} · {{ c.sub_industry }}{% endif %}{% if c.last_price is not none %} · ultimo prezzo {{ c.last_price | fmt("price", currency=c.currency) }} al {{ c.price_date | fmt("date") }}{% endif %}</p>
+  <p style="margin-top:10px">
+  {% if c.owned %}
+    <span class="tag owned">Possiedo</span> {{ c.owned.quantity | fmt("num", digits=0 if c.owned.quantity == c.owned.quantity|int else 2) }} azioni dal {{ c.owned.since | fmt("date") }}, prezzo di carico {{ c.owned.avg_cost | fmt("price", currency=c.currency) }}{% if c.owned.weight is not none %}, {{ c.owned.weight | fmt("pct") }} del portafoglio{% endif %}. Conflitto d'interesse: guadagno se il titolo sale.
+  {% else %}
+    <span class="tag">Non possiedo</span> Non ho questo titolo in portafoglio.
+  {% endif %}
+  </p>
+</div>
+
+<section aria-labelledby="h-verdict" style="margin-top:0">
+  <h2 id="h-verdict">Giudizio</h2>
+  {% if v %}
+  <div class="card">
+    <div class="verdict-head">{{ m.badge(v, big=true) }}<span class="small muted">{{ v.profile }} · dati coperti {{ v.coverage | fmt("pct", digits=0) }}</span></div>
+    <p class="rule">{{ v.rule }}</p>
+    {% if v.alarms %}<p class="notice"><strong>Allarmi:</strong> {{ v.alarms | join("; ") }}</p>{% endif %}
+    {% if v.checks %}<p class="notice info" style="margin-top:8px"><strong>Da verificare:</strong> {{ v.checks | join("; ") }}</p>{% endif %}
+    <div class="pillars" style="margin-top:12px">
+    {% for p in v.pillars %}
+      <details class="pillar"{% if loop.first %} open{% endif %}>
+        <summary>
+          <span class="name">{{ p.label }}</span>
+          <span class="grade">{{ p.grade }} · <span class="mono">{{ m.val(p.score, "score") }}</span></span>
+          <span class="meter" role="meter" aria-label="{{ p.label }}" aria-valuemin="0" aria-valuemax="1" aria-valuenow="{{ p.score if p.score is not none else 0 }}"><span style="width:{{ ((p.score or 0) * 100) | round(0) }}%"></span></span>
+        </summary>
+        <ul class="ev">
+        {% for e in p.evidence %}
+          <li><span class="o {{ e.outcome }}" aria-hidden="true">{{ e.symbol }}</span><span><strong>{{ e.label }}</strong>: <span class="val">{{ e.shown }}</span><span class="muted small"> · {{ e.outcome }}</span></span><span class="r">{{ e.reference }}</span></li>
+        {% endfor %}
+        </ul>
+      </details>
+    {% endfor %}
+    </div>
+    {% if v.changes %}
+    <h3 style="margin-top:16px">Cosa farebbe cambiare il giudizio</h3>
+    <ul class="plain small">{% for x in v.changes %}<li>{{ x }}</li>{% endfor %}</ul>
+    {% endif %}
+    <p class="small muted" style="margin-top:12px">Il giudizio è una lista di controllo automatica, non un segnale provato: nella prova storica {{ ctx.method.test.period }} le aziende «candidate» non hanno battuto l'indice. <a href="../metodo.html">Metodo</a>.</p>
+  </div>
+  {% else %}
+  {{ m.empty("Giudizio non disponibile.", " Mancano i bilanci o i prezzi necessari (per esempio per un fondo o un ETF).") }}
+  {% endif %}
+</section>
+
+<section aria-labelledby="h-hist">
+  <h2 id="h-hist">Storia del giudizio</h2>
+  {% set tl = c.timeline %}
+  {% if tl.segments %}
+    {% if tl.strip %}{{ tl.strip | safe }}{% endif %}
+    <ul class="plain">
+    {% for s in tl.segments | reverse %}
+      <li><span class="badge {{ s.tone }}"><span class="sym" aria-hidden="true">{{ s.symbol }}</span>{{ s.label }}</span> <span class="small muted">{% if s.start == s.end %}il {{ s.start | fmt("date") }}{% else %}dal {{ s.start | fmt("date") }} al {{ s.end | fmt("date") }}{% endif %}</span></li>
+    {% endfor %}
+    </ul>
+    {% if tl.dates < 2 %}<p class="small muted">Lo storico è iniziato il {{ tl.first | fmt("date") }}: un solo giudizio registrato finora. Si allunga a ogni aggiornamento serale.</p>{% endif %}
+  {% else %}
+  {{ m.empty("Nessun giudizio registrato nello storico.", " Lo storico si scrive a ogni aggiornamento dei dati.") }}
+  {% endif %}
+</section>
+
+<div class="grid2">
+<section aria-labelledby="h-thesis">
+  <h2 id="h-thesis">La mia tesi</h2>
+  {% set th = c.thesis %}
+  {% if th.text or th.one_liner or th.story or th.fair_value is not none or c.valuation %}
+  <div class="card">
+    {% if th.one_liner %}<p><strong>{{ th.one_liner }}</strong></p>{% endif %}
+    {% for para in th.text %}<p>{{ para }}</p>{% endfor %}
+    {% for para in th.story %}<p>{{ para }}</p>{% endfor %}
+    <dl class="small" style="display:grid;grid-template-columns:max-content 1fr;gap:6px 12px;margin:8px 0 0">
+      {% if th.fair_value is not none %}<dt class="muted">Il mio valore</dt><dd style="margin:0">{{ th.fair_value | fmt("price", currency=c.currency) }}{% if c.last_price %} · margine {{ m.delta(th.fair_value / c.last_price - 1) }}{% endif %}</dd>{% endif %}
+      {% if th.catalysts %}<dt class="muted">Cosa può andare bene</dt><dd style="margin:0">{{ th.catalysts | join(" ") }}</dd>{% endif %}
+      {% if th.risks %}<dt class="muted">Rischi</dt><dd style="margin:0">{{ th.risks | join(" ") }}</dd>{% endif %}
+      {% if th.change_mind %}<dt class="muted">Cambio idea se</dt><dd style="margin:0">{{ th.change_mind | join(" ") }}</dd>{% endif %}
+      {% if th.review_date %}<dt class="muted">Prossima revisione</dt><dd style="margin:0">{{ th.review_date | fmt("date") }}</dd>{% endif %}
+      {% if th.updated_at %}<dt class="muted">Aggiornata il</dt><dd style="margin:0">{{ th.updated_at | fmt("date") }}</dd>{% endif %}
+    </dl>
+    {% if c.valuation %}
+    <p class="small" style="margin-top:12px">Ultima valutazione a scenari del {{ c.valuation.created_at | fmt("date") }}: valore atteso {{ m.val(c.valuation.expected_value, "price", currency=c.currency) }} con il prezzo a {{ m.val(c.valuation.price, "price", currency=c.currency) }} (margine allora {{ m.delta(c.valuation.margin_then) }}; da allora il prezzo ha fatto {{ m.delta(c.valuation.return_since) }}).</p>
+    {% if c.valuation.story %}<p class="small">{{ c.valuation.story }}</p>{% endif %}
+    {% endif %}
+  </div>
+  {% else %}
+  {{ m.empty("Nessuna tesi scritta.", " Non ho ancora scritto perché seguo questa azienda.") }}
+  {% endif %}
+</section>
+
+<section aria-labelledby="h-chg">
+  <h2 id="h-chg">Cosa è cambiato all'ultimo bilancio</h2>
+  {% if c.changes.form %}
+  <div class="card">
+    <p class="small muted">{{ c.changes.form }} al {{ c.changes.period_end | fmt("date") }}, depositato il {{ c.changes.filed | fmt("date") }}</p>
+    {% if c.changes["items"] %}
+    <ul class="plain">
+    {% for it in c.changes["items"] %}
+      <li class="chg"><span class="s {{ 'pos' if it.favorable is true else 'neg' if it.favorable is false else 'flat' }}" aria-hidden="true">{{ '▲' if it.favorable is true else '▼' if it.favorable is false else '■' }}</span><span>{{ it.text }} <span class="sr">({{ 'favorevole' if it.favorable is true else 'sfavorevole' if it.favorable is false else 'neutro' }})</span></span></li>
+    {% endfor %}
+    </ul>
+    <p class="small muted">▲ nel verso buono · ▼ nel verso cattivo</p>
+    {% else %}<p>Nessuna variazione rilevante rispetto al periodo precedente.</p>{% endif %}
+  </div>
+  {% else %}
+  {{ m.empty("Nessun bilancio disponibile.") }}
+  {% endif %}
+</section>
+</div>
+
+{% if c.decisions %}
+<section aria-labelledby="h-dec">
+  <h2 id="h-dec">Le mie decisioni</h2>
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th scope="col">Data</th><th scope="col">Decisione</th><th scope="col" class="n">Prezzo</th><th scope="col" class="n">Contro l'indice</th><th scope="col">Esito</th><th scope="col">Perché</th></tr></thead>
+    <tbody>{% for x in c.decisions %}<tr><td><a href="../decisioni.html#d{{ x.id }}">{{ x.date | fmt("date") }}</a></td><td>{{ x.action_label }}</td>{{ m.td(x.price, "price", currency=x.currency) }}{{ m.td_delta(x.excess, "pp") }}<td>{% if x.right is true %}<span class="pos">✓ Giusta</span>{% elif x.right is false %}<span class="neg">✗ Sbagliata</span>{% else %}<span class="muted">◷ In attesa</span>{% endif %}</td><td class="wrap small">{{ x.reason }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{% if c.trades %}
+<section aria-labelledby="h-tr">
+  <h2 id="h-tr">Le mie operazioni</h2>
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th scope="col">Data</th><th scope="col">Tipo</th><th scope="col" class="n">Quantità</th><th scope="col" class="n">Prezzo</th><th scope="col" class="n">Importo €</th></tr></thead>
+    <tbody>{% for r in c.trades %}<tr><td>{{ r.date | fmt("date") }}</td><td>{{ r.kind_label }}</td>{{ m.td(r.quantity, "num", digits=0 if r.quantity == r.quantity|int else 2) }}{{ m.td(r.price, "price", currency=r.currency) }}{{ m.td(r.amount_eur, "money", currency="EUR") }}</tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<div class="grid2">
+<section aria-labelledby="h-funds">
+  <h2 id="h-funds">Fondi che la possiedono</h2>
+  {% if c.holders %}
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th scope="col">Fondo</th><th scope="col" class="n">Peso</th><th scope="col">Ultimo trimestre</th></tr></thead>
+    <tbody>{% for h in c.holders %}<tr><td><a href="../fondi/{{ h.slug }}.html">{{ h.fund }}</a></td>{{ m.td(h.weight, "pct") }}<td>{{ h.change }} · {{ h.report_date | fmt("date") }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="small muted">Dai 13F: istantanea a fine trimestre, depositata fino a 45 giorni dopo.</p>
+  {% else %}{{ m.empty("Nessuno dei fondi seguiti la possiede.") }}{% endif %}
+</section>
+<section aria-labelledby="h-ins">
+  <h2 id="h-ins">Acquisti degli insider</h2>
+  {% if c.insider_buys %}
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th scope="col">Deposito</th><th scope="col">Chi</th><th scope="col" class="n">Azioni</th><th scope="col" class="n">Valore</th></tr></thead>
+    <tbody>{% for b in c.insider_buys %}<tr><td>{{ b.date | fmt("date") }}</td><td class="wrap">{{ b.owner }}{% if b.title %} <span class="muted small">{{ b.title }}</span>{% endif %}</td>{{ m.td(b.shares, "shares") }}{{ m.td(b.value, "money", currency="USD") }}</tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="small muted">Acquisti sul mercato (Form 4, codice P); esclusi i soci oltre il 10%.</p>
+  {% else %}{{ m.empty("Nessun acquisto sul mercato nel periodo.") }}{% endif %}
+</section>
+</div>
+
+<section aria-labelledby="h-al">
+  <h2 id="h-al">Avvisi su {{ c.ticker }} <a class="more" href="{{ c.slug }}.xml">Feed RSS di {{ c.ticker }}</a></h2>
+  {% if alerts %}<div class="card">{{ m.feed(alerts, root) }}</div>{% else %}{{ m.empty("Nessun avviso nel periodo.") }}{% endif %}
+</section>
+{% endblock %}

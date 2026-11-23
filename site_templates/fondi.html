@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Fondi (13F) · {{ site.title }}{% endblock %}
+{% block description %}I portafogli dichiarati alla SEC (13F) dei grandi investitori che seguo, con i cambi trimestre su trimestre.{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Fondi che seguo</h1>
+  <p>Ogni gestore con più di 100 milioni di dollari in azioni USA deposita alla SEC, entro 45 giorni dalla fine di ogni trimestre, l'elenco delle sue posizioni (modulo 13F). È un'istantanea vecchia di uno-tre mesi: non dice cosa il fondo ha fatto dopo, né le posizioni corte o fuori dagli USA.</p>
+</div>
+{% set ok = ctx.funds | selectattr("status", "equalto", "ok") | list %}
+{% if ok %}
+<div class="table-wrap">
+<table class="data sortable">
+  <caption class="sr">Fondi seguiti: tocca un'intestazione per ordinare</caption>
+  <thead><tr><th scope="col">Fondo</th><th scope="col">Trimestre</th><th scope="col">Depositato</th><th scope="col" class="n">Valore (USD)</th><th scope="col" class="n">Posizioni</th><th scope="col" class="n">Nuove</th><th scope="col" class="n">Uscite</th><th scope="col" class="n">Prime 10</th></tr></thead>
+  <tbody>
+  {% for f in ok | sort(attribute="filed", reverse=true) %}
+    <tr>
+      <td data-v="{{ f.name }}"><a href="fondi/{{ f.slug }}.html">{{ f.name }}</a></td>
+      <td data-v="{{ f.report_date }}">{{ f.report_date | fmt("date") }}</td>
+      <td data-v="{{ f.filed }}">{{ f.filed | fmt("date") }}</td>
+      {{ m.td(f.total_value, "money", currency="USD") }}{{ m.td(f.n_positions, "int") }}{{ m.td(f.changes.nuova, "int") }}{{ m.td(f.changes.uscita, "int") }}{{ m.td(f.top10_weight, "pct", digits=0) }}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="small muted" style="margin-top:8px">«Prime 10»: quota del portafoglio nelle dieci posizioni più grandi (concentrazione). Valori in dollari dichiarati dal fondo; opzioni escluse.</p>
+{% else %}
+{{ m.empty("Nessun 13F disponibile.", " I portafogli dei fondi compaiono dopo il primo aggiornamento dei dati 13F.") }}
+{% endif %}
+{% set none_yet = ctx.funds | selectattr("status", "equalto", "empty") | list %}
+{% if none_yet %}<p class="small muted">Senza dati per ora: {{ none_yet | map(attribute="name") | join(", ") }}.</p>{% endif %}
+{% endblock %}

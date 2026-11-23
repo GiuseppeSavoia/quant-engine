@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>{{ title }}</title>
+<link>{{ link or "." }}</link>
+<description>{{ description }}</description>
+<language>it-it</language>
+<lastBuildDate>{{ built }}</lastBuildDate>
+<generator>QUANT_ENGINE</generator>
+{% if self_url %}<atom:link href="{{ self_url }}" rel="self" type="application/rss+xml"/>
+{% endif %}
+{% for a in items %}
+<item>
+<title>{{ a.title }}</title>
+{% if a.link %}<link>{{ a.link }}</link>
+{% endif %}
+<description>{{ a.text }}</description>
+<category>{{ a.kind_label }}</category>
+<guid isPermaLink="false">{{ a.guid }}</guid>
+<pubDate>{{ a.pub }}</pubDate>
+</item>
+{% endfor %}
+</channel>
+</rss>

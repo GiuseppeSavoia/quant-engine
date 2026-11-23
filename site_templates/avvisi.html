@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Avvisi · {{ site.title }}{% endblock %}
+{% block description %}Nuove decisioni, operazioni, giudizi cambiati, nuovi 13F dei fondi e acquisti degli insider.{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Avvisi</h1>
+  <p>Tutto quello che è cambiato, dal più recente: le mie decisioni e operazioni, i giudizi cambiati sulle aziende che seguo, i nuovi 13F dei fondi e gli acquisti degli insider. Per riceverli senza tornare qui, aggiungi il <a href="avvisi.xml">feed RSS</a> a un lettore di feed (ogni azienda ha anche il suo).</p>
+  {% if not site.base_url %}<p class="notice" style="margin-top:8px">Il feed RSS non ha ancora l'indirizzo del sito: gli avvisi ci sono, ma senza link cliccabili.</p>{% endif %}
+</div>
+{% if ctx.alerts %}
+{% set kinds = [] %}
+{% for a in ctx.alerts %}{% if a.kind not in kinds %}{% set _ = kinds.append(a.kind) %}{% endif %}{% endfor %}
+<div class="filters" role="group" aria-label="Filtra per tipo" data-filter-for="lista-avvisi">
+  <button type="button" data-kind="tutti" aria-pressed="true">Tutti {{ ctx.alerts | length }}</button>
+  {% for k in kinds %}<button type="button" data-kind="{{ k }}" aria-pressed="false">{{ (ctx.alerts | selectattr("kind", "equalto", k) | first).kind_label }} {{ ctx.alerts | selectattr("kind", "equalto", k) | list | length }}</button>{% endfor %}
+</div>
+<div class="card">{{ m.feed(ctx.alerts, root, id="lista-avvisi") }}</div>
+{% else %}
+{{ m.empty("Nessun avviso nel periodo.", " Compariranno qui decisioni, operazioni, giudizi cambiati, nuovi 13F e acquisti degli insider.") }}
+{% endif %}
+{% endblock %}

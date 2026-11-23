@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+venv/
+.pytest_cache/
+
+# dati e output generati
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/backups/
+data/logs/
+data/sec_bulk/
+data/cache/
+data/preferenze_interfaccia.json
+data/preferenze_x.json
+reports/
+_backup_originale/
+.claude/settings.local.json
+
+# sito pubblico generato (tools/build_site.py)
+build/
+.claude/

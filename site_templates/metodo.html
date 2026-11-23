@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set t = ctx.method.test %}
+{% block title %}Metodo e avvertenze · {{ site.title }}{% endblock %}
+{% block description %}Come funziona il giudizio sulle aziende, cosa dice la prova storica, fonti dei dati e avvertenze.{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Metodo e avvertenze</h1>
+  <p>Come nascono i giudizi, cosa ha detto la prova sul passato (anche quando non mi dà ragione), da dove vengono i dati e cosa questo sito non è.</p>
+</div>
+
+<div class="prose">
+<h2 id="giudizio">Come funziona il giudizio</h2>
+<p>Ogni azienda passa per gli stessi controlli, fissati prima di guardare i risultati. Le prove sono raggruppate in cinque pilastri; ogni prova ha due soglie (favorevole e contraria) e dà un punteggio da 0 a 1:</p>
+<ul>
+  {% for p in ctx.method.pillars %}<li><strong>{{ p.label }}</strong>{% if p.key == "insiders" %}: solo contesto, non decide da solo{% endif %}</li>{% endfor %}
+</ul>
+<p>Regola ferma: <strong>un dato mancante non conta mai come positivo</strong>. Banche, assicurazioni e società immobiliari hanno prove proprie (i margini e il flusso di cassa di un'industria non dicono molto su una banca). Dalle prove si arriva a una di queste conclusioni, con regole scritte in chiaro nella pagina di ogni azienda:</p>
+<ul class="plain" style="margin:8px 0 16px">
+  {% for c in ctx.method.categories %}<li><span class="badge {{ c.tone }}"><span class="sym" aria-hidden="true">{{ c.symbol }}</span>{{ c.label }}</span>{% if c.n %} <span class="small muted">{{ c.n }} tra le aziende seguite</span>{% endif %}</li>{% endfor %}
+</ul>
+
+<h2 id="prova">La prova storica: le «candidate» non hanno battuto l'indice</h2>
+<p>Ho applicato lo stesso giudizio, con una sola configurazione, a ogni fine trimestre dal {{ t.period[:4] }} al {{ t.period[-4:] }} ({{ t.dates }} date), usando solo i bilanci già depositati a quella data e le aziende allora nell'indice. Il risultato:</p>
+<div class="facts" role="list">
+  <div role="listitem"><span class="micro">Rendimento in eccesso a 12 mesi</span><b>{{ m.delta(t.excess_12m) }}</b><span class="small muted">delle «candidate» contro l'indice a pesi uguali</span></div>
+  <div role="listitem"><span class="micro">Statistica t</span><b>{{ t.t_stat | fmt("num", digits=1) }}</b><span class="small muted">lontano dalla soglia di significatività (circa 2)</span></div>
+  <div role="listitem"><span class="micro">Date provate</span><b>{{ t.dates }}</b><span class="small muted">fine trimestre, {{ t.period }}</span></div>
+</div>
+<p><strong>Quindi il giudizio non è un segnale per battere il mercato.</strong> È una lista di controllo ragionata: serve a non dimenticare domande importanti (l'azienda guadagna sul capitale? è indebitata? il prezzo sconta già tutto?) e a scriverle prima di decidere. Le regole non vengono ritoccate per far tornare i conti sul passato: sarebbe adattarle ai dati.</p>
+<p>Dal {{ ctx.method.history_start | fmt("date") if ctx.method.history_start else "primo aggiornamento" }} ogni giudizio viene salvato ogni sera: tra qualche anno si potrà misurare su dati che non esistevano quando le regole sono state scritte. È l'unica prova davvero indipendente; con pochi mesi non dice ancora nulla.</p>
+
+<h2 id="decisioni">Come misuro le mie decisioni</h2>
+<p>Ogni decisione viene confrontata con l'indice dal giorno in cui l'ho presa. Dopo 90 giorni diventa «giusta» o «sbagliata» e conta nel tasso di successo, che pubblico intero, con gli errori. Il portafoglio si confronta con gli stessi euro messi nell'indice negli stessi giorni.</p>
+
+<h2 id="fonti">Fonti dei dati</h2>
+<ul>
+  <li><strong>Bilanci</strong>: SEC EDGAR (dati XBRL dei 10-K e 10-Q), con la data di deposito di ogni versione.</li>
+  <li><strong>Insider</strong>: moduli 3, 4 e 5 della SEC; contano gli acquisti sul mercato, esclusi i soci oltre il 10%.</li>
+  <li><strong>Fondi</strong>: moduli 13F-HR della SEC, i nomi dei titoli ricondotti ai ticker per somiglianza (qualche posizione può restare senza ticker).</li>
+  <li><strong>Prezzi</strong>: Yahoo Finance, usati per i calcoli; qui compaiono solo come singolo numero (prezzo di carico, ultimo prezzo), mai come serie.</li>
+  <li><strong>Composizione dell'indice</strong>: elenco storico dei membri dell'S&amp;P 500.</li>
+</ul>
+<p>Aggiornamento: ogni sera dopo la chiusura di Wall Street. Dati al <strong>{{ site.as_of | fmt("date") }}</strong>; sito generato il {{ site.generated_at | fmt("date") }}.</p>
+
+<h2 id="avvertenze">Avvertenze</h2>
+<ul>
+  <li><strong>Non è una raccomandazione né una consulenza finanziaria.</strong> Sono le scelte di una persona, pubblicate per trasparenza. Nessun contenuto tiene conto della tua situazione, dei tuoi obiettivi o della tua tolleranza al rischio.</li>
+  <li><strong>Conflitto d'interesse</strong>: possiedo i titoli del portafoglio e potrei comprarli o venderli in qualsiasi momento, anche prima che il sito venga aggiornato.</li>
+  <li><strong>Nessuna garanzia</strong>: i dati possono contenere errori o ritardi; i risultati passati, miei o della prova storica, non dicono nulla su quelli futuri. Si può perdere tutto il capitale investito in un'azione.</li>
+  <li>I giudizi automatici sono una sintesi di criteri applicati ai dati disponibili, non previsioni. {{ ctx.method.disclaimer }}</li>
+  <li>Le stime fiscali (dividendi netti) sono approssimazioni, non conti fiscali.</li>
+</ul>
+</div>
+{% endblock %}

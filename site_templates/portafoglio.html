@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set p = ctx.portfolio %}
+{% block title %}Portafoglio · {{ site.title }}{% endblock %}
+{% block description %}Il portafoglio reale di {{ site.title }}: posizioni, operazioni, dividendi e confronto con l'indice.{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Portafoglio</h1>
+  <p>Quello che possiedo davvero, in euro, con il prezzo di carico di ogni titolo e il confronto con l'indice. Le commissioni sono comprese nei costi; il cambio è quello del giorno di ogni operazione. Il rendimento è ponderato nel tempo: soldi aggiunti o tolti non contano come guadagno o perdita.</p>
+</div>
+
+{% if p.status != "ok" %}
+{{ m.empty("Il portafoglio è ancora vuoto.", " Nessuna operazione registrata: quando comprerò il primo titolo comparirà qui, con data, quantità e prezzo.") }}
+{% else %}
+{% set k = p.kpi %}
+<div class="hero card">
+  <div>
+    <div class="key-label">Valore al {{ k.as_of | fmt("date") }}</div>
+    <div class="key">{{ m.val(k.value, "money", currency="EUR") }}</div>
+    <div class="key-sub">Guadagno {{ m.delta(k.gain, "money", currency="EUR") }} · rendimento {{ m.delta(k.twr, "pct") }} ponderato nel tempo</div>
+  </div>
+  <div class="kpis" role="list">
+    <div class="kpi" role="listitem"><div class="micro">Investito netto</div><div class="v">{{ m.val(k.invested, "money", currency="EUR") }}</div><div class="s">acquisti meno vendite</div></div>
+    <div class="kpi" role="listitem"><div class="micro">Indice ({{ p.benchmark }})</div><div class="v">{{ m.val(k.bench_value, "money", currency="EUR") }}</div><div class="s">rendimento {{ m.delta(k.bench_twr, "pct") }}</div></div>
+    <div class="kpi" role="listitem"><div class="micro">Contro l'indice</div><div class="v">{{ m.delta(k.vs_bench, "money", currency="EUR") }}</div><div class="s">differenza di valore</div></div>
+    <div class="kpi" role="listitem"><div class="micro">Dividendi netti</div><div class="v">{{ m.val(p.dividends_net, "money", currency="EUR") }}</div><div class="s">stima dopo le ritenute</div></div>
+  </div>
+</div>
+{% if p.missing_prices %}<p class="notice" style="margin-top:12px">Senza prezzo aggiornato: {{ p.missing_prices | join(", ") }}. Il loro valore manca dal totale.</p>{% endif %}
+
+<section aria-labelledby="h-chart">
+  <h2 id="h-chart">Andamento</h2>
+  {% call m.chart(p.chart, "Valore in euro, una rilevazione a settimana") %}
+  <details class="more-data">
+    <summary>Tabella dei valori a fine mese</summary>
+    <div class="table-wrap" style="margin-top:8px">
+    <table class="data">
+      <thead><tr><th scope="col">Fine mese</th><th scope="col" class="n">Portafoglio</th><th scope="col" class="n">Stessi euro nell'indice</th><th scope="col" class="n">Investito</th></tr></thead>
+      <tbody>
+      {% for r in p.chart_table %}<tr><td>{{ r.date | fmt("date") }}</td>{{ m.td(r.value, "money", currency="EUR") }}{{ m.td(r.benchmark, "money", currency="EUR") }}{{ m.td(r.invested, "money", currency="EUR") }}</tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% endcall %}
+  {% if not p.chart %}{{ m.empty("Storia troppo breve per un grafico.", " Serve almeno qualche settimana dopo il primo acquisto.") }}{% endif %}
+</section>
+
+<section aria-labelledby="h-pos">
+  <h2 id="h-pos">Posizioni <span class="muted small">{{ p.positions | length }}</span></h2>
+  {% if p.positions %}
+  <div class="table-wrap">
+  <table class="data sortable">
+    <caption class="sr">Posizioni aperte: tocca un'intestazione per ordinare</caption>
+    <thead><tr>
+      <th scope="col">Titolo</th><th scope="col" class="n">Quantità</th><th scope="col" class="n">Prezzo di carico</th>
+      <th scope="col" class="n">Ultimo prezzo</th><th scope="col" class="n">Valore €</th><th scope="col" class="n">Peso</th>
+      <th scope="col" class="n">Guadagno €</th><th scope="col" class="n">Guadagno %</th><th scope="col">Giudizio</th>
+    </tr></thead>
+    <tbody>
+    {% for r in p.positions %}
+      <tr>
+        <td data-v="{{ r.ticker }}">{{ m.tk(r.ticker, root, r.ticker in followed) }} <span class="muted small">{{ r.name }}</span></td>
+        {{ m.td(r.quantity, "num", digits=0 if r.quantity == r.quantity|int else 2) }}
+        {{ m.td(r.avg_cost, "price", currency=r.currency) }}
+        {{ m.td(r.price, "price", currency=r.currency) }}
+        {{ m.td(r.value_eur, "money", currency="EUR") }}
+        <td class="n" data-v="{{ '' if r.weight is none else r.weight }}"><span class="bar-cell">{{ m.val(r.weight, "pct") }}{% if r.weight is not none %}<span class="bar-track" aria-hidden="true"><span style="width:{{ (r.weight * 100) | round(1) }}%"></span></span>{% endif %}</span></td>
+        {{ m.td_delta(r.gain_eur, "money", currency="EUR") }}
+        {{ m.td_delta(r.gain_pct, "pct") }}
+        <td data-v="{{ r.verdict.label if r.verdict else '' }}">{{ m.badge(r.verdict) if r.verdict else m.na() }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  {{ m.empty("Nessuna posizione aperta.", " Tutte le posizioni sono state vendute.") }}
+  {% endif %}
+</section>
+
+{% if p.look_through %}
+{% set lt = p.look_through %}
+<section aria-labelledby="h-look">
+  <h2 id="h-look">Esposizione vera negli ETF</h2>
+  <p class="small muted">Guardando dentro i fondi: le prime posizioni di ogni ETF (i fondi dichiarano solo le prime 10). È un limite inferiore: {{ m.val(lt.summary.undetailed_eur, "money", currency="EUR") }} restano non dettagliati.</p>
+  <div class="table-wrap">
+  <table class="data sortable">
+    <thead><tr><th scope="col">Azienda</th><th scope="col" class="n">Esposizione €</th><th scope="col" class="n">Peso</th></tr></thead>
+    <tbody>
+    {% for r in lt.top %}<tr><td data-v="{{ r.name }}">{{ r.name }}{% if r.ticker %} <span class="muted small mono">{{ r.ticker }}</span>{% endif %}</td>{{ m.td(r.value_eur, "money", currency="EUR") }}{{ m.td(r.weight, "pct") }}</tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section aria-labelledby="operazioni" id="sez-operazioni">
+  <h2 id="operazioni">Operazioni <span class="muted small">{{ p.trades | length }}</span></h2>
+  <div class="table-wrap">
+  <table class="data sortable">
+    <caption class="sr">Tutte le operazioni, dalla più recente</caption>
+    <thead><tr><th scope="col">Data</th><th scope="col">Tipo</th><th scope="col">Titolo</th><th scope="col" class="n">Quantità</th><th scope="col" class="n">Prezzo</th><th scope="col" class="n">Importo €</th><th scope="col" class="n">Commissioni €</th><th scope="col" data-nosort>Nota</th></tr></thead>
+    <tbody>
+    {% for r in p.trades %}
+      <tr><td data-v="{{ r.date }}">{{ r.date | fmt("date") }}</td><td>{{ r.kind_label }}</td><td data-v="{{ r.ticker }}">{{ m.tk(r.ticker, root, r.ticker in followed) }}</td>
+      {{ m.td(r.quantity, "num", digits=0 if r.quantity == r.quantity|int else 2) }}{{ m.td(r.price, "price", currency=r.currency) }}{{ m.td(r.amount_eur, "money", currency="EUR") }}{{ m.td(r.fees_eur, "num", currency="EUR") }}<td class="wrap small">{{ r.note }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<div class="grid2">
+<section aria-labelledby="h-div">
+  <h2 id="h-div">Dividendi</h2>
+  {% if p.dividends %}
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th scope="col">Data</th><th scope="col">Titolo</th><th scope="col" class="n">Lordo €</th><th scope="col" class="n">Netto stimato €</th></tr></thead>
+    <tbody>{% for r in p.dividends %}<tr><td>{{ r.date | fmt("date") }}</td><td>{{ m.tk(r.ticker, root, r.ticker in followed) }}</td>{{ m.td(r.gross_eur, "num", currency="EUR") }}{{ m.td(r.net_eur, "num", currency="EUR") }}</tr>{% endfor %}</tbody>
+  </table>
+  </div>
+  <p class="small muted">Netto stimato: 15% trattenuto negli USA e 26% in Italia. Non è un conto fiscale.</p>
+  {% else %}{{ m.empty("Nessun dividendo registrato.") }}{% endif %}
+</section>
+<section aria-labelledby="h-real">
+  <h2 id="h-real">Vendite chiuse</h2>
+  {% if p.realized %}
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th scope="col">Data</th><th scope="col">Titolo</th><th scope="col" class="n">Quantità</th><th scope="col" class="n">Incasso €</th><th scope="col" class="n">Risultato €</th></tr></thead>
+    <tbody>{% for r in p.realized %}<tr><td>{{ r.date | fmt("date") }}</td><td>{{ m.tk(r.ticker, root, r.ticker in followed) }}</td>{{ m.td(r.quantity, "num", digits=0) }}{{ m.td(r.proceeds_eur, "money", currency="EUR") }}{{ m.td_delta(r.gain_eur, "money", currency="EUR") }}</tr>{% endfor %}</tbody>
+  </table>
+  </div>
+  {% else %}{{ m.empty("Nessuna vendita ancora.") }}{% endif %}
+</section>
+</div>
+{% endif %}
+{% endblock %}

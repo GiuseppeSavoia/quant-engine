@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ f.name }} · {{ site.title }}{% endblock %}
+{% block description %}Il portafoglio 13F di {{ f.name }}: posizioni e cambi rispetto al trimestre prima.{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="crumbs"><a href="../fondi.html">Fondi</a> / {{ f.name }}</div>
+  <h1>{{ f.name }}</h1>
+  {% if f.status == "ok" %}<p>Portafoglio al {{ f.report_date | fmt("date") }}, depositato alla SEC il {{ f.filed | fmt("date") }}. <a href="{{ f.sec_url }}" rel="noopener">Depositi originali sulla SEC</a>.</p>{% endif %}
+</div>
+{% if f.status == "ok" %}
+<div class="hero card">
+  <div>
+    <div class="key-label">Valore dichiarato</div>
+    <div class="key">{{ m.val(f.total_value, "money", currency="USD") }}</div>
+    <div class="key-sub">{{ f.n_positions }} posizioni · {{ f.quarters }} trimestri nei dati</div>
+  </div>
+  <div class="kpis" role="list">
+    <div class="kpi" role="listitem"><div class="micro">Nuove</div><div class="v">{{ f.changes.nuova }}</div></div>
+    <div class="kpi" role="listitem"><div class="micro">Aumentate</div><div class="v">{{ f.changes.aumentata }}</div></div>
+    <div class="kpi" role="listitem"><div class="micro">Ridotte</div><div class="v">{{ f.changes.ridotta }}</div></div>
+    <div class="kpi" role="listitem"><div class="micro">Uscite</div><div class="v">{{ f.changes.uscita }}</div></div>
+  </div>
+</div>
+
+{% if f.new %}
+<section aria-labelledby="h-new">
+  <h2 id="h-new">Nuove posizioni nel trimestre</h2>
+  <ul class="plain card">{% for r in f.new %}<li>{% if r.ticker %}{{ m.tk(r.ticker, root, r.ticker in followed) }} {% endif %}<span class="small">{{ r.issuer }}</span> · {{ m.val(r.value, "money", currency="USD") }} · {{ m.val(r.weight, "pct") }} del fondo</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<section aria-labelledby="h-pos">
+  <h2 id="h-pos">Posizioni principali <span class="muted small">prime {{ f.positions | length }} di {{ f.n_positions }}</span></h2>
+  <div class="table-wrap">
+  <table class="data sortable">
+    <caption class="sr">Posizioni del fondo: tocca un'intestazione per ordinare</caption>
+    <thead><tr><th scope="col">Titolo</th><th scope="col" class="n">Valore (USD)</th><th scope="col" class="n">Peso</th><th scope="col" class="n">Azioni rispetto al trimestre prima</th><th scope="col">Cambio</th></tr></thead>
+    <tbody>
+    {% for r in f.positions %}
+      <tr>
+        <td data-v="{{ r.ticker or r.issuer }}">{% if r.ticker %}{{ m.tk(r.ticker, root, r.ticker in followed) }} {% endif %}<span class="small{{ ' muted' if r.ticker }}">{{ r.issuer }}</span></td>
+        {{ m.td(r.value, "money", currency="USD") }}
+        <td class="n" data-v="{{ '' if r.weight is none else r.weight }}"><span class="bar-cell">{{ m.val(r.weight, "pct") }}{% if r.rel is not none %}<span class="bar-track" aria-hidden="true"><span style="width:{{ (r.rel * 100) | round(1) }}%"></span></span>{% endif %}</span></td>
+        {{ m.td_delta(r.shares_change, "pct") }}
+        <td>{{ {"nuova": "✚ nuova", "aumentata": "▲ aumentata", "ridotta": "▼ ridotta", "invariata": "■ invariata"}.get(r.change, r.change) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if f.thousands_fixed %}<p class="notice info" style="margin-top:8px">Alcuni depositi di questo fondo hanno i valori in un'unità sbagliata (migliaia invece di dollari, o il contrario): qui sono corretti di un fattore 1.000, riconosciuto confrontando ogni posizione con il prezzo di borsa a fine trimestre.</p>{% endif %}
+  <p class="small muted" style="margin-top:8px">Le barre sono in proporzione alla posizione più grande. Variazione delle azioni: sopra/sotto il 2% conta come aumento/riduzione.</p>
+</section>
+{% if alerts %}
+<section aria-labelledby="h-fil">
+  <h2 id="h-fil">Depositi recenti</h2>
+  <div class="card">{{ m.feed(alerts, root) }}</div>
+</section>
+{% endif %}
+{% else %}
+{{ m.empty("Nessun 13F nei dati per questo fondo.") }}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set dec = ctx.decisions %}
+{% block title %}Decisioni · {{ site.title }}{% endblock %}
+{% block description %}Ogni decisione d'investimento con il motivo, cosa farebbe cambiare idea e l'esito contro l'indice.{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Decisioni</h1>
+  <p>Ogni acquisto, vendita, «non compro» e «aspetto» con il motivo scritto quel giorno e cosa mi farebbe cambiare idea. Dopo {{ dec.min_days or 90 }} giorni ogni decisione si misura contro l'indice: compare qui sia quando ho avuto ragione sia quando ho sbagliato.</p>
+</div>
+
+{% if dec.entries %}
+<div class="hero card">
+  <div>
+    <div class="key-label">Tasso di successo</div>
+    <div class="key">{% if dec.hit.judged %}{{ m.val(dec.hit.rate, "pct", digits=0) }}{% else %}{{ m.na() }}{% endif %}</div>
+    <div class="key-sub">{% if dec.hit.judged %}{{ dec.hit.right }} decisioni giuste su {{ dec.hit.judged }} giudicabili{% else %}nessuna decisione ha ancora {{ dec.min_days }} giorni{% endif %}</div>
+  </div>
+  <div class="kpis" role="list">
+    {% for a in dec.hit.by_action %}
+    <div class="kpi" role="listitem"><div class="micro">{{ a.label }}</div><div class="v">{{ m.val(a.rate, "pct", digits=0) }}</div><div class="s">su {{ a.n }}</div></div>
+    {% endfor %}
+    <div class="kpi" role="listitem"><div class="micro">In attesa</div><div class="v">{{ dec.pending }}</div><div class="s">meno di {{ dec.min_days }} giorni</div></div>
+  </div>
+</div>
+<p class="small muted" style="margin-top:8px">«Giusta» vuol dire: per Compro e Aspetto il titolo ha fatto meglio dell'indice da quel giorno, per Vendo e Non compro ha fatto peggio. Con poche decisioni il tasso dice poco.</p>
+
+<section aria-labelledby="h-list">
+  <h2 id="h-list">Tutte le decisioni <span class="muted small">{{ dec.entries | length }}</span></h2>
+  <div class="card">
+  {% for x in dec.entries %}
+    <article class="dec" id="d{{ x.id }}">
+      <div class="dec-head">
+        <h3>{{ x.action_label }} · {{ m.tk(x.ticker, root, x.ticker in followed) }}</h3>
+        <span class="muted small">{{ x.name }}</span>
+        <time class="muted small" datetime="{{ x.date }}" style="margin-left:auto">{{ x.date | fmt("date") }}</time>
+      </div>
+      <dl>
+        <dt>Prezzo</dt><dd>{{ m.val(x.price, "price", currency=x.currency) }}</dd>
+        <dt>Perché</dt><dd>{{ x.reason or "—" }}</dd>
+        <dt>Cambio idea se</dt><dd>{{ x.change_mind or "—" }}</dd>
+        {% if x.review_note %}<dt>Revisione</dt><dd>{{ x.review_note }}</dd>{% endif %}
+      </dl>
+      <div class="outcome">
+        <span>Titolo {{ m.delta(x.ret) }}</span>
+        <span>Indice {{ m.delta(x.bench_ret) }}</span>
+        <span>Differenza {{ m.delta(x.excess, "pp") }}</span>
+        <span>
+        {% if x.right is true %}<span class="badge pos"><span class="sym" aria-hidden="true">✓</span>Giusta</span>
+        {% elif x.right is false %}<span class="badge neg"><span class="sym" aria-hidden="true">✗</span>Sbagliata</span>
+        {% else %}<span class="badge off"><span class="sym" aria-hidden="true">◷</span>In attesa: ancora {{ x.days_left }} giorni</span>{% endif %}
+        </span>
+      </div>
+    </article>
+  {% endfor %}
+  </div>
+</section>
+{% else %}
+{{ m.empty("Nessuna decisione registrata.", " Il diario parte con la prima decisione: motivo, cosa farebbe cambiare idea e, dopo 90 giorni, l'esito contro l'indice.") }}
+{% endif %}
+{% endblock %}
