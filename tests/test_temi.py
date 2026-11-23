@@ -44,7 +44,7 @@ def test_system_scheme_from_cookie(prefs, monkeypatch):
     monkeypatch.setattr(common.st, "context", SimpleNamespace(cookies={"qe_scheme": "dark"}))
     assert common._terminal_wanted() is True
     monkeypatch.setattr(common.st, "context", SimpleNamespace(cookies={"qe_scheme": "<script>"}))
-    assert common.system_scheme() is None and common._terminal_wanted() is True   # ignoto: scuro, come prima
+    assert common.system_scheme() is None and common._terminal_wanted() is False  # ignoto: chiaro, base del prodotto
     common.set_appearance("chiaro")                                # scelta fissa: il cookie non conta
     monkeypatch.setattr(common.st, "context", SimpleNamespace(cookies={"qe_scheme": "dark"}))
     assert common._terminal_wanted() is False
@@ -67,21 +67,21 @@ def test_apply_theme_switches_server_options():
         common._apply_theme(False)
         assert st_config.get_option("theme.base") == "light"
         assert st_config.get_option("theme.primaryColor") == common.CLASSIC_THEME["primaryColor"]
-        assert st_config.get_option("theme.backgroundColor") is None
+        assert st_config.get_option("theme.backgroundColor") == common.LIGHT_THEME["backgroundColor"]
     finally:
         common._apply_theme(True)
     assert st_config.get_option("theme.base") == "dark"
-    assert st_config.get_option("theme.backgroundColor") == "#000000"
+    assert st_config.get_option("theme.backgroundColor") == "#000000"   # scuro di config.toml
 
 
 DEMO_DB = ROOT / "data" / "demo.db"
 
 
 @pytest.mark.skipif(not DEMO_DB.exists(), reason="manca data/demo.db (python main.py --demo)")
-@pytest.mark.parametrize("choice, dark", [("chiaro", False), ("scuro", True), ("sistema", True)])
+@pytest.mark.parametrize("choice, dark", [("chiaro", False), ("scuro", True), ("sistema", False)])
 def test_data_menu_selector(tmp_path, monkeypatch, choice, dark):
     """Nell'app: il selettore a tre voci mostra la scelta salvata accanto al database e il tema segue (con
-    "Segui il sistema" e nessun cookie, come nei test: scuro); lo script del cookie solo con "Segui il sistema"."""
+    "Segui il sistema" e nessun cookie, come nei test: chiaro); lo script del cookie solo con "Segui il sistema"."""
     import socket
 
     from streamlit import config as st_config

@@ -1,14 +1,12 @@
 """Scheda azienda, funzione Stime (EE): consenso degli analisti, multipli sui prossimi 12 mesi, confronto con le
-ipotesi del DCF, revisioni nel tempo; scarico da Yahoo e import da CSV (modules/estimates.py). Solo informazione:
-le stime non entrano nel giudizio."""
+ipotesi del DCF, revisioni nel tempo; scarico da Yahoo e import da CSV. I numeri vengono già calcolati dal servizio
+`estimates` (`d.estimates_overview`, modules/services/estimates.py): qui solo la presentazione. Solo informazione: le
+stime non entrano nel giudizio."""
 from __future__ import annotations
 
-import numpy as np
-import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules import estimates as es
 from ui.common import SERIES, _args, _layout
 from ui.components import NA, empty_state, fmt, fmt_html, kv_html, notice
 
@@ -29,49 +27,39 @@ def _upload(d, ticker: str):
         up = st.file_uploader("CSV delle stime", type=["csv"], key="ee_csv", label_visibility="collapsed")
         if up is not None and st.button("Importa", key="ee_import", type="primary"):
             try:
-                rows = es.parse_csv(up.getvalue().decode("utf-8-sig"))
+                n, tickers = d.import_estimates_csv(up.getvalue().decode("utf-8-sig"))
             except Exception as exc:  # noqa: BLE001 - errore del file: si spiega, non si blocca
                 notice(f"CSV non importato: {exc}", "warn")
                 return
-            n = d.db.save_estimates(rows)
-            st.session_state["qe_flash"] = f"{n} stime importate ({', '.join(sorted(set(rows['ticker'])))})."
+            st.session_state["qe_flash"] = f"{n} stime importate ({', '.join(tickers)})."
             st.rerun()
 
 
 def _estimates_tab(d, ticker: str):
     demo = bool(getattr(_args(), "demo", False))
-    est = d.db.load_estimates([ticker])
+    view = d.estimates_overview(ticker, online=not demo)
     left, right = st.columns([3, 1], vertical_alignment="center")
     left.caption("Consenso degli analisti: solo informazione, non entra nel giudizio. Le medie degli analisti sono "
                  "storicamente ottimiste, soprattutto oltre l'anno.")
     if right.button("Scarica da Yahoo", key="ee_fetch", disabled=demo, width="stretch",
                     help="Non disponibile sui dati simulati" if demo else "Stime e prezzi obiettivo di Yahoo"):
         with st.spinner("Scarico le stime…"):
-            res = es.refresh(d.db, [ticker], max_age_days=0, max_tickers=1, pause=0)
+            res = d.refresh_estimates(ticker)
         st.session_state["qe_flash"] = (f"Stime di {ticker} aggiornate." if res["aggiornate"]
                                         else f"Nessuna stima da Yahoo per {ticker}.")
         st.rerun()
-    if est.empty:
+    if view["empty"]:
         empty_state("Nessuna stima per questa azienda",
                     "Scaricale da Yahoo (pulsante qui sopra) oppure importale da un CSV. Le aziende seguite e nella "
                     "pipeline si aggiornano da sole con i dati serali.")
         _upload(d, ticker)
         return
-    m = d.metrics()
-    g = lambda k: float(m.at[ticker, k]) if ticker in m.index and k in m.columns else np.nan  # noqa: E731
-    px = d.prices(ticker)
-    price = float(px["close"].iloc[-1]) if not px.empty else np.nan
-    annual = d.data.statements(ticker)
-    cur = d.currency(ticker)
-    from modules.europe import _yahoo_fx
-
-    est, fx_notes = es.to_currency(est, cur, None if demo else _yahoo_fx)
-    for n in fx_notes:
+    cur, s = view["currency"], view["summary"]
+    for n in view["fx_notes"]:
         notice(n[0].upper() + n[1:] + ".", "warn" if "esclusi" in n else "info")
-    s = es.summary(est, price, g("market_cap"), g("enterprise_value"), annual.index[-1] if not annual.empty else None)
     st.html(kv_html([
         ("P/E prossimi 12 mesi", fmt_html(s["pe_ntm"], "mult")),
-        ("P/E ultimi 12 mesi", fmt_html(g("pe"), "mult")),
+        ("P/E ultimi 12 mesi", fmt_html(view["trailing_pe"], "mult")),
         ("EV/Ricavi 12 mesi", fmt_html(s["ev_sales_ntm"], "mult")),
         ("Utile per azione: quest'anno / prossimo", f"{fmt_html(s['eps_growth_fy0'], 'pct', signed=True)} / "
                                                     f"{fmt_html(s['eps_growth_fy1'], 'pct', signed=True)}"),
@@ -81,24 +69,13 @@ def _estimates_tab(d, ticker: str):
         (f"Prezzo obiettivo ({cur})", f"{fmt(s['price_target'], 'price')} "
                                       f"{fmt_html(s['upside'], 'pct', digits=0, signed=True)}"),
     ]))
-    try:
-        setup = d.valuation_setup(ticker)
-    except Exception:  # noqa: BLE001
-        setup = None
-    if setup is not None and np.isfinite(s["revenue_growth_fy0"]):
-        base = setup["scenarios"].get("Base") or next(iter(setup["scenarios"].values()))
-        cons = np.nanmean([s["revenue_growth_fy0"], s["revenue_growth_fy1"]])
-        gap = base.growth - cons
-        tone = "warn" if abs(gap) > 0.05 else "info"
-        notice(f"Il tuo scenario Base del DCF usa una crescita dei ricavi del {fmt(base.growth, 'pct')} l'anno per 5 "
-               f"anni; il consenso si aspetta {fmt(cons, 'pct')} in media nei prossimi due esercizi "
-               f"({'più ottimista' if gap > 0 else 'più prudente'} di {fmt(abs(gap), 'pp')}).", tone)
-    lat = es.latest(est)
-    show = lat[lat["metric"] != "price_target"].assign(
-        voce=lambda x: x["metric"].map(es.METRICS), periodo=lambda x: x["period"].map(lambda p: es.PERIODS.get(p, p)))
-    big = show["metric"] == "revenue"
-    for c in ("avg", "low", "high", "year_ago"):
-        show[c] = np.where(big, show[c] / 1e6, show[c])
+    if (dcf := view["dcf"]) is not None:
+        gap = dcf["gap"]
+        notice(f"Il tuo scenario Base del DCF usa una crescita dei ricavi del {fmt(dcf['base_growth'], 'pct')} l'anno "
+               f"per 5 anni; il consenso si aspetta {fmt(dcf['consensus_growth'], 'pct')} in media nei prossimi due "
+               f"esercizi ({'più ottimista' if gap > 0 else 'più prudente'} di {fmt(abs(gap), 'pp')}).",
+               "warn" if abs(gap) > 0.05 else "info")
+    show = view["table"]
     st.dataframe(show[["voce", "periodo", "avg", "low", "high", "analysts", "year_ago", "growth", "source", "as_of"]],
                  hide_index=True, width="stretch",
                  column_config={"voce": "Voce", "periodo": "Periodo",
@@ -109,7 +86,7 @@ def _estimates_tab(d, ticker: str):
                                 "year_ago": st.column_config.NumberColumn("Anno prima", format="localized"),
                                 "growth": st.column_config.NumberColumn("Crescita", format="percent"),
                                 "source": "Fonte", "as_of": st.column_config.DateColumn("Del", format="DD/MM/YYYY")})
-    rev = es.revisions(est)
+    rev = view["revisions"]
     if len(rev) > 1:
         fig = go.Figure(go.Scatter(x=rev.index, y=rev.values, mode="lines+markers", line=dict(color=SERIES[0])))
         st.markdown("**Revisioni: utile per azione atteso per l'esercizio prossimo**")

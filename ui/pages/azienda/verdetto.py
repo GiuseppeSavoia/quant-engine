@@ -2,8 +2,8 @@
 attivi dell'azienda, le soglie di prezzo dell'utente e la funzione "Prove" (le prove di ogni pilastro con il
 confronto col settore).
 
-Il giudizio viene da `modules.verdict.assess_ticker` (regole invariate) e "cosa è cambiato" da
-`modules.changes.what_changed`: qui solo la presentazione. I due calcoli stanno in `st.cache_data` con chiave
+Il giudizio e "cosa è cambiato" vengono dal servizio `judgment` (`d.company_verdict`, `d.what_changed`: regole di
+modules/verdict.py e modules/changes.py invariate), soglie e avvisi dal servizio `watch`: qui solo la presentazione. I due calcoli stanno in `st.cache_data` con chiave
 (ticker, versione dei dati, dati dell'utente che li cambiano): cambiare funzione della scheda non li rifà.
 """
 from __future__ import annotations
@@ -14,8 +14,8 @@ import re
 import pandas as pd
 import streamlit as st
 
-from modules import changes, verdict
-from ui.components import (NA, OUTCOME_SYMBOL, it_number, alert_row_html, change_rows_html, empty_state, evidence_table_html,
+from modules.changes import ITEMS as CHANGE_ITEMS  # solo etichette delle voci
+from ui.components import (NA, OUTCOME_SYMBOL, alert_row_html, change_rows_html, empty_state, evidence_table_html,
                            fmt, fmt_html, fmt_metric, panel, verdict_card_html)
 
 # CSS dei pezzi costruiti qui (niente parentesi angolari dentro il CSS: regola dei componenti)
@@ -39,22 +39,17 @@ VERDETTO_CSS = """<style>
 # ================================================================== calcoli in cache
 def data_key(d) -> str:
     """Versione dei dati: oggetto DashboardData (cambia a ogni ricaricamento), ultima esecuzione, dati a mano."""
-    try:
-        user = d.db.user_data_version()
-    except Exception:  # noqa: BLE001 - una chiave di cache non deve rompere la pagina
-        user = "-"
-    return f"{id(d)}|{getattr(d, 'run_id', '')}|{user}"
+    return f"{id(d)}|{getattr(d, 'run_id', '')}|{d.user_data_version()}"
 
 
 @st.cache_data(show_spinner=False, max_entries=128)
 def _verdict_cached(ticker: str, key: str, fair_value, _d):  # noqa: ARG001 - key e fair_value: solo chiavi
-    return verdict.assess_ticker(_d, ticker)
+    return _d.company_verdict(ticker)
 
 
 @st.cache_data(show_spinner=False, max_entries=128)
 def _changes_cached(ticker: str, key: str, thesis_key: str, sector, currency: str, _d, _note, _valuation):  # noqa: ARG001
-    return changes.what_changed(_d.data, ticker, cfg=_d.cfg, sector=sector, currency=currency,
-                                note=_note or {}, valuation=_valuation)
+    return _d.what_changed(ticker, sector, currency, note=_note or {}, valuation=_valuation)
 
 
 def assess(d, ticker: str, fair_value=None):
@@ -67,24 +62,11 @@ def assess(d, ticker: str, fair_value=None):
         return None
 
 
-# numeri all'inglese nei testi di altri moduli (valutazione, strategia, qualità dei dati): a schermo in italiano.
-# NON per il Verdetto: modules/verdict.py scrive già in italiano e convertire di nuovo guasterebbe "1.234,5"
-_NUM = re.compile(r"\d[\d,]*\.\d+|\d{1,3}(?:,\d{3})+")
-
-
-def it_text(text: str) -> str:
-    """"ROIC 12.5% >= 0.60, 1,234.5" -> "ROIC 12,5% ≥ 0,60, 1.234,5" (solo i numeri con decimali o migliaia)."""
-    if not text:
-        return text
-    out = _NUM.sub(lambda m: it_number(m.group(0)), str(text))
-    return out.replace(">=", "≥").replace("<=", "≤")
+from modules.formats import it_text  # noqa: E402,F401 - riesportata per valutazione.py e ricerca.py
 
 
 def what_changed(d, ticker: str, sector, currency: str) -> dict:
-    try:
-        note, valuation = changes.thesis_inputs(d.db, ticker)
-    except Exception:  # noqa: BLE001
-        note, valuation = {}, None
+    note, valuation = d.thesis_inputs(ticker)
     vkey = "" if not valuation else str(valuation.get("id") or valuation.get("created_at") or "")
     thesis_key = f"{note.get('updated_at')}|{note.get('fair_value')}|{vkey}"
     try:
@@ -96,16 +78,7 @@ def what_changed(d, ticker: str, sector, currency: str) -> dict:
 # ================================================================== soglie di prezzo
 def price_target(d, ticker: str) -> dict:
     """Soglie dell'utente per il titolo: {buy_below, sell_above, note} (vuoto se non ci sono)."""
-    try:
-        t = d.db.load_price_targets()
-    except Exception:  # noqa: BLE001 - tabella non ancora creata
-        return {}
-    if t.empty or ticker not in set(t["ticker"]):
-        return {}
-    row = t[t["ticker"] == ticker].iloc[-1]
-    num = lambda v: None if v is None or pd.isna(v) else float(v)  # noqa: E731
-    return {"buy_below": num(row.get("buy_below")), "sell_above": num(row.get("sell_above")),
-            "note": row.get("note") or ""}
+    return d.price_target(ticker)
 
 
 def targets_html(target: dict, currency: str) -> str:
@@ -132,16 +105,15 @@ def targets_form(d, ticker: str, target: dict, currency: str) -> None:
                              key=f"tg_note_{ticker}")
         saved = st.form_submit_button("Salva le soglie", type="primary")
     if saved:
-        if buy is None and sell is None:
-            st.error("Scrivi almeno una delle due soglie (oppure usa \"Togli le soglie\").")
-        elif buy is not None and sell is not None and buy >= sell:
-            st.error("La soglia di acquisto deve essere più bassa di quella di vendita.")
+        try:
+            d.set_price_target(ticker, buy_below=buy, sell_above=sell, note=note or None)
+        except ValueError as exc:  # soglie mancanti o invertite: il messaggio è già per l'utente
+            st.error(str(exc))
         else:
-            d.db.set_price_target(ticker, buy_below=buy, sell_above=sell, note=note or None)
             st.session_state["qe_flash"] = f"Soglie di {ticker} salvate."
             st.rerun()
     if target and st.button("Togli le soglie", key=f"tg_del_{ticker}"):
-        d.db.delete_price_target(ticker)
+        d.delete_price_target(ticker)
         st.session_state["qe_flash"] = f"Soglie di {ticker} tolte."
         st.rerun()
 
@@ -298,7 +270,7 @@ def changes_table_html(items, currency: str) -> str:
     rows = []
     for c in sorted(items, key=lambda c: (list(COMPARISON).index(c.comparison) if c.comparison in COMPARISON else 9,
                                            -c.score)):
-        it = changes.ITEMS.get(c.key)
+        it = CHANGE_ITEMS.get(c.key)
         kind = FMT_KIND.get(it.fmt if it else "num", "num")
         cur = {"currency": currency} if kind == "money" else {}
         delta = fmt(c.delta, "pp") if c.kind == "pt" and kind == "pct" else \
@@ -320,10 +292,7 @@ def changes_table_html(items, currency: str) -> str:
 # ================================================================== avvisi attivi
 def render_alerts(d, ticker: str) -> None:
     """Avvisi ancora attivi dell'azienda (una riga ciascuno); aprire la scheda li segna come visti."""
-    try:
-        a = d.db.load_alerts(ticker=ticker, active=True)
-    except Exception:  # noqa: BLE001 - tabella assente in un database vecchio
-        return
+    a = d.active_alerts(ticker)
     if a.empty:
         return
     with panel(f"Avvisi attivi · {len(a)}", right="storico in Le mie aziende"):
@@ -332,8 +301,8 @@ def render_alerts(d, ticker: str) -> None:
     unseen = a.loc[a["seen_at"].isna(), "id"].tolist() if "seen_at" in a else []
     if unseen:
         try:
-            d.db.mark_alerts_seen(unseen)
-        except Exception:  # noqa: BLE001
+            d.mark_alerts_seen(unseen)
+        except Exception:  # noqa: BLE001 - segnare come visti è un di più: la scheda non si rompe
             pass
 
 

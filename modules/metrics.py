@@ -196,7 +196,12 @@ JUDGMENT_GROUP = "Il mio giudizio"
 # il voto della tua checklist qualitativa: esiste solo oggi, quindi mai nei backtest (lo riempie la webapp)
 JUDGMENT = Metric("my_checklist", "Il mio voto (checklist, 1-5)", JUDGMENT_GROUP, "num", "high",
                   "Media pesata dei voti che hai dato nella scheda \"Il mio giudizio\"")
-JUDGMENT_KEYS = {JUDGMENT.key}
+# a quanti investitori del tavolo (modules/investor_panel.py) l'azienda passa tutte le regole: calcolata solo sui dati di
+# oggi dalla webapp; vietata nelle strategie come il voto (una strategia che usa il tavolo sarebbe circolare)
+INVESTORS_LIKING = Metric("investors_liking", "Grandi investitori a cui piace", "Tavolo dei grandi investitori", "int",
+                          "high", "Quanti investitori del tavolo (scheda, funzione Tavolo) la vedono passare TUTTE le "
+                                  "loro regole tradotte; solo informazione, non è il loro giudizio")
+JUDGMENT_KEYS = {JUDGMENT.key, INVESTORS_LIKING.key}
 CUSTOM: dict[str, dict] = {}       # chiave -> {label, formula, fmt, better, description}
 METRIC_BY_KEY: dict[str, Metric] = {}
 GROUPS: list[str] = []
@@ -206,7 +211,7 @@ CUSTOM_FORMATS = {"pct": "percentuale", "x": "multiplo (x)", "num": "numero"}
 def _rebuild() -> None:
     custom = [Metric(k, d["label"], CUSTOM_GROUP, d.get("fmt", "num"), d.get("better"), d.get("description") or
                      f"= {d['formula']}") for k, d in CUSTOM.items()]
-    METRICS[:] = BASE_METRICS + custom + [JUDGMENT]
+    METRICS[:] = BASE_METRICS + custom + [JUDGMENT, INVESTORS_LIKING]
     METRIC_BY_KEY.clear()
     METRIC_BY_KEY.update({m.key: m for m in METRICS})
     GROUPS[:] = list(dict.fromkeys(m.group for m in METRICS))

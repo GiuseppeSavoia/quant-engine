@@ -36,7 +36,9 @@ def git_state(root: Path = PROJECT_ROOT) -> tuple[str | None, bool | None]:
 # chiavi che non toccano il motore né i backtest: fuori dall'impronta. `my_portfolio` (confronto del portafoglio
 # reale) prima si chiamava `portfolio` e veniva sovrascritta da quella della strategia, quindi non c'era mai stata:
 # lasciarla fuori tiene uguali le impronte dei risultati già salvati in `experiments`
-HASH_IGNORED_KEYS = ("my_portfolio", "public_site")
+# `investor_panel` (tavolo dei grandi investitori, 2026-11-23) è solo informazione nella scheda: non cambia nessun
+# calcolo di backtest o giudizio, e con lei nell'impronta nessun risultato salvato si ritroverebbe più
+HASH_IGNORED_KEYS = ("my_portfolio", "public_site", "investor_panel")
 
 
 def config_hash(cfg: dict) -> str:

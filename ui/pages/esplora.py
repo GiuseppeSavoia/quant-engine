@@ -15,12 +15,10 @@ from ui.rules import (PILLAR_HELP, PILLAR_SHORT, _rules_add, _rules_set, _rules_
                       num_col, pillar_column, round_for_display, styled, verdict_note, verdict_options,
                       verdict_table, verdict_text)
 
-EXPLORE_DEFAULT_COLS = ["pe", "ev_ebit", "fcf_yield", "roic", "operating_margin", "revenue_growth",
-                        "net_debt_ebitda", "dividend_yield", "ret_1y"]
-FILTER_PILLARS = ["quality", "solidity", "price", "flags"]
+from modules.services.explore import EXPLORE_DEFAULT_COLS, FILTER_PILLARS  # noqa: E402
 SCORE_STEPS = [round(i / 10, 1) for i in range(11)]
 GROUP_SYMBOL = {"S&P 500": "$", "FTSE MIB": "€", "Euro Stoxx 50": "€"}
-SORTS = {"auto": "Prima condizione (o capitalizzazione)", "verdict": "Giudizio", "market_cap": "Capitalizzazione"}
+from modules.services.explore import SORTS  # noqa: E402
 
 
 def _ex_set(rules: list[dict], sectors: list[str] | None = None):

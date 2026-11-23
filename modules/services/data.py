@@ -37,6 +37,18 @@ SERVICES = {
     "strategies": ("modules.services.strategies", "StrategyService"),
     "news": ("modules.services.news", "NewsService"),
     "reports": ("modules.services.reports", "ReportService"),
+    "judgment": ("modules.services.judgment", "JudgmentService"),
+    "estimates": ("modules.services.estimates", "EstimatesService"),
+    "statements": ("modules.services.statements", "StatementsService"),
+    "explore": ("modules.services.explore", "ExploreService"),
+    "compare": ("modules.services.compare", "CompareService"),
+    "today": ("modules.services.today", "TodayService"),
+    "price_chart": ("modules.services.price_chart", "PriceChartService"),
+    "pipeline": ("modules.services.pipeline", "PipelineService"),
+    "dossier": ("modules.services.dossier", "DossierService"),
+    "lab": ("modules.services.lab", "LabService"),
+    "data_admin": ("modules.services.data_admin", "DataAdminService"),
+    "investor_panel": ("modules.services.investor_panel", "InvestorPanelService"),
 }
 
 
@@ -222,11 +234,15 @@ class AppData:
 
     # ------------------------------------------------------------------ metriche
     def metrics(self) -> pd.DataFrame:
-        """Catalogo delle metriche per tutti i membri dell'indice (calcolato una volta), metriche personali e voto
-        della checklist compresi."""
+        """Catalogo delle metriche per tutti i membri dell'indice (calcolato una volta), metriche personali, voto
+        della checklist e numero di grandi investitori del tavolo a cui piace compresi."""
         if self._metrics is None:
             self._metrics = compute_metrics(self.data, self.tickers,
                                             insider_days=int(self.cfg.get("insiders", {}).get("window_days", 90)))
+            from modules import investor_panel, strategies
+
+            self._metrics[metrics_mod.INVESTORS_LIKING.key] = investor_panel.liked_by(
+                self._metrics, self.sectors(), list(self.index_tickers), strategies.CATALOG).reindex(self._metrics.index)
         self._metrics[metrics_mod.JUDGMENT.key] = self.checklist_scores().reindex(self._metrics.index)
         return self._metrics
 

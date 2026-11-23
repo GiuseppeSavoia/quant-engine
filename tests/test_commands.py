@@ -39,7 +39,8 @@ def test_company_functions_and_menu_numbers():
     assert p("fa").section == "FA" and p("fa").tickers == []          # sull'azienda già aperta
     assert p("7").section == "ERN" and p("/8").section == "DVD"         # menu numerato; "/" iniziale ignorato
     assert p("1").section == "PRV" and p("4").section == "DCF" and p("11").section == "DES"
-    assert p("13").section == "EE" and p("14").error and p("0").error  # 13 = Stime (2026-11-23)
+    assert p("13").section == "EE" and p("14").section == "TAV" and p("15").error and p("0").error  # 14 = Tavolo
+    assert p("aapl inv").section == "TAV" and p("tavolo").section == "TAV"
     assert p("verdetto").section == "PRV" and p("aapl prove").tickers == ["AAPL"] and p("metriche").section == "DES"
     assert p("ins").section == "HDS" and p("rv ko").tickers == ["KO"]
     assert p("aapl cn").section == "CF" and p("cn").page == "notizie"   # CN: notizie dell'azienda o tutte

@@ -56,23 +56,15 @@ def _sb_definition() -> dict:
     }
 
 
-def _sb_save(d: DashboardData, reserved: set[str]):
+def _sb_save(d: DashboardData):
     definition = _sb_definition()
     try:
-        if not definition["name"]:
-            raise ValueError("Dai un nome alla strategia.")
-        if definition["name"] in reserved:
-            raise ValueError("C'è già una strategia standard con questo nome.")
-        strategies.validate_definition(definition)
+        name = d.save_user_strategy(definition, st.session_state.get("sb_editing"))
     except ValueError as exc:
         st.session_state["sb_error"] = str(exc)
         return
-    old = st.session_state.get("sb_editing")
-    if old and old != definition["name"]:
-        d.db.delete_strategy(old)
-    d.db.save_strategy(definition)
-    st.session_state.update({"st_sel": definition["name"], "st_view": "Risultati", "sb_editing": definition["name"],
-                             "flash": f"Strategia \"{definition['name']}\" salvata."})
+    st.session_state.update({"st_sel": name, "st_view": "Risultati", "sb_editing": name,
+                             "flash": f"Strategia \"{name}\" salvata."})
 
 
 def _rank_add():
@@ -152,7 +144,7 @@ def _strategy_results(d: DashboardData):
         with b[2].popover("Elimina", width="stretch"):
             st.write(f"Eliminare \"{name}\"? I backtest già fatti restano nel database.")
             if st.button("Sì, elimina"):
-                d.db.delete_strategy(name)
+                d.delete_user_strategy(name)
                 st.session_state.pop("st_sel", None)
                 st.rerun()
     elif definition:
@@ -280,27 +272,16 @@ def _strategy_holdings(d: DashboardData, name: str):
 
 def _strategy_overview(d: DashboardData, names: list[str], mine: dict):
     st.subheader("Tutte le strategie a confronto")
-    rows, missing = [], []
-    baseline = d.strategy_result(strategies.BASELINE)
-    catalog = d.strategy_catalog()
-    for n in names:
-        res = d.strategy_result(n)
-        if res is None:
-            missing.append(n)
-            continue
-        t = d.period_table(res, baseline).set_index(["period", "what"])
-        get = lambda prefix, col: t[t.index.get_level_values(0).str.startswith(prefix)].xs(  # noqa: E731
-            "Strategia", level=1)[col].iloc[0]
-        kind = "Mia" if n in mine else catalog.get(n, {}).get("group", "Di base")
-        rows.append({"Strategia": n, "Tipo": kind, "Dal": str(res["equity"].index[0].year),
-                     "all": get("Tutto", "cagr"), "first": get("1a", "cagr"), "second": get("2a", "cagr"),
-                     "sharpe": get("Tutto", "sharpe_ratio"), "dd": get("Tutto", "max_drawdown"),
-                     "turnover": res["metrics"].get("turnover_annual", np.nan)})
+    over = d.strategies_overview()
+    rows = [{"Strategia": r["name"], "Tipo": "Mia" if r["mine"] else r["group"], "Dal": str(r["since"]),
+             "all": r["all"], "first": r["first"], "second": r["second"], "sharpe": r["sharpe"], "dd": r["drawdown"],
+             "turnover": r["turnover"] if r["turnover"] is not None else np.nan} for r in over["rows"]]
+    missing = over["missing"]
     if rows:
         notice("Ordinate per rendimento nella seconda metà. Con tante strategie provate sugli stessi dati, la prima "
                "è anche la più fortunata: conta di più chi regge in entrambe le metà e il confronto con l'indice a "
                "pesi uguali.", "info", title="Cautela:")
-        table = pd.DataFrame(rows).sort_values("second", ascending=False)
+        table = pd.DataFrame(rows)
         st.dataframe(table, hide_index=True, width="stretch", height=table_height(len(table), 25),
                      column_config={
                          "all": num_column("All'anno (tutto)", "pct"), "first": num_column("All'anno (1a metà)", "pct"),
@@ -319,7 +300,6 @@ def _strategy_overview(d: DashboardData, names: list[str], mine: dict):
 
 
 def _strategy_builder(d: DashboardData):
-    catalog = d.strategy_catalog()
     if "sb_name" not in st.session_state:
         _sb_load(strategies.default_definition(), switch=False)
     editing = st.session_state.get("sb_editing")
@@ -373,20 +353,12 @@ def _strategy_builder(d: DashboardData):
     q1.slider("Peso massimo per titolo", 1.0, 100.0, step=1.0, key="sb_maxw", format="%d%%")
     q2.slider("Peso massimo per settore", 5.0, 100.0, step=5.0, key="sb_maxsec", format="%d%%")
 
-    definition = _sb_definition()
-    try:
-        strategies.validate_definition(definition)
-        table = d.explore_table()
-        if definition["universe"]["sectors"]:
-            table = table[table["sector"].isin(definition["universe"]["sectors"])]
-        if definition["universe"]["watchlist_only"]:
-            table = table[table["followed"]]
-        passing = int(screener.apply_rules(table, definition["filters"], d.sectors()).sum())
-        notice(f"oggi passano i filtri {fmt(passing, 'int')} aziende su {fmt(len(table), 'int')}; la strategia ne "
-               f"terrebbe {fmt(min(passing, definition['portfolio']['positions']), 'int')}.", "info",
-               title="Anteprima:")
-    except ValueError as exc:
-        notice(str(exc), "warn", title="Da completare:")
+    prev = d.strategy_preview(_sb_definition())
+    if prev["ok"]:
+        notice(f"oggi passano i filtri {fmt(prev['passing'], 'int')} aziende su {fmt(prev['universe'], 'int')}; la "
+               f"strategia ne terrebbe {fmt(prev['held'], 'int')}.", "info", title="Anteprima:")
+    else:
+        notice(prev["error"], "warn", title="Da completare:")
     if "sb_error" in st.session_state:
         st.error(st.session_state.pop("sb_error"))
-    st.button("Salva la strategia", type="primary", on_click=_sb_save, args=(d, set(catalog)))
+    st.button("Salva la strategia", type="primary", on_click=_sb_save, args=(d,))

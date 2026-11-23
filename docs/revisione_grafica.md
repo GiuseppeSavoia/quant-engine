@@ -233,6 +233,8 @@ percorso principale.
 
 ---
 
+> **2026-11-23 — superato in parte.** Il sistema visivo è passato a un aspetto da prodotto (moderno chiaro, scuro grafite): valori in `ui/common.py` (`LIGHT_THEME`, `TOKENS_LIGHT`, `TOKENS_DARK`, `RADII`) e in `.streamlit/config.toml`. Restano validi: regole sui numeri e formati (§3.4), tabelle (§3.5), stati vuoti, contrasti minimi. Non valgono più: nero/ambra, monospazio diffuso, maiuscole nelle etichette, tasti F bordati.
+
 ## 3. Sistema visivo
 
 Tutto in `ui/common.py` (costanti e CSS) + un nuovo `ui/components.py` (funzioni che restituiscono HTML). Ogni

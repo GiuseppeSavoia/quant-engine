@@ -162,3 +162,13 @@ def test_stime_con_dati_ed_esporta(app_env):
     at.button(key="co_xlsx_make").click().run()
     _assert_ok(at, "prepara il modello Excel")
     assert at.session_state["qe_xlsx_AAPL"][:2] == b"PK"  # uno zip: il file .xlsx
+
+
+def test_tavolo_dei_grandi_investitori(app_env):
+    """Funzione TAV: sintesi, nota fissa "non è una raccomandazione", una riga per investitore con l'esito."""
+    at = _run("azienda", {"ticker": "AAPL", "co_fn": "TAV"})
+    _assert_ok(at, "Tavolo dei grandi investitori")
+    page = " ".join(str(getattr(e, "proto", "")) for e in at.main)
+    assert "Il tavolo in sintesi" in page and "non è una raccomandazione" in page
+    labels = [e.label for e in at.expander]
+    assert len(labels) >= 18 and any("Buffett" in x for x in labels)

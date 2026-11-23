@@ -39,7 +39,7 @@ MENU = {
 }
 # tasti funzione: solo le 8 pagine del percorso principale "apro -> cerco -> capisco se comprare" (le altre stanno
 # nel menu in alto). Anche sulla tastiera: F1-F8 oppure Alt+1...8 (su Mac i tasti F chiedono fn), vedi shell._keyboard
-FKEYS = [("F1", "", "Oggi"), ("F2", "mie-aziende", "Mie"), ("F3", "azienda", "Scheda"),
+FKEYS = [("F1", "", "Oggi"), ("F2", "mie-aziende", "Le mie aziende"), ("F3", "azienda", "Scheda"),
          ("F4", "esplora", "Esplora"), ("F5", "confronta", "Confronta"), ("F6", "portafoglio", "Portafoglio"),
          ("F7", "diario", "Diario"), ("F8", "notizie", "Notizie")]
 

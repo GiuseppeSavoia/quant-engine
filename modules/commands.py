@@ -42,11 +42,11 @@ FUNCTIONS: list[tuple[str, str]] = [
     ("PRV", "Prove"), ("FA", "Bilanci"), ("GP", "Grafico"), ("DCF", "Valutazione"), ("RV", "Concorrenti"),
     ("CF", "Notizie e documenti"), ("ERN", "Trimestri"), ("DVD", "Dividendi e riacquisti"), ("HDS", "Insider e fondi"),
     ("NOTE", "La mia ricerca"), ("DES", "Tutte le metriche"), ("AUTO", "Strategia automatica (sperimentale)"),
-    ("EE", "Stime degli analisti"),
+    ("EE", "Stime degli analisti"), ("TAV", "Tavolo dei grandi investitori"),
 ]
 # i codici non cambiano mai (AAPL FA, AAPL DCF... restano validi); i numeri seguono l'ordine del menu (dal 2026-11-14
 # le prime sei sono le voci principali della scheda, le altre stanno in "Altro")
-FUNCTION_ALIASES = {"STIME": "EE", "EST": "EE", "CONSENSO": "EE", "INS": "HDS", "OWN": "HDS", "DIV": "DVD", "PEER": "RV", "PEERS": "RV", "VAL": "DCF",
+FUNCTION_ALIASES = {"INV": "TAV", "TAVOLO": "TAV", "INVESTITORI": "TAV", "STIME": "EE", "EST": "EE", "CONSENSO": "EE", "INS": "HDS", "OWN": "HDS", "DIV": "DVD", "PEER": "RV", "PEERS": "RV", "VAL": "DCF",
                     "BIL": "FA", "CN": "CF", "NEWS": "CF", "8K": "CF", "8-K": "CF",
                     "PROVE": "PRV", "VERDETTO": "PRV", "GIUDIZIO": "PRV", "METRICHE": "DES", "PROFILO": "DES"}
 FUNCTION_CODES = {code for code, _ in FUNCTIONS}

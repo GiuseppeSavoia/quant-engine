@@ -21,4 +21,8 @@ _backup_originale/
 
 # sito pubblico generato (tools/build_site.py)
 build/
-.claude/
+
+# interfaccia web (web/): dipendenze e build
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo

@@ -55,3 +55,16 @@ class ReportService(Service):
     def trades_for(self, ticker: str) -> pd.DataFrame:
         trades = self.ctx.backtest_trades()
         return trades[trades["ticker"] == ticker] if not trades.empty else trades
+
+    # ------------------------------------------------------------------ esportazioni della scheda
+    def export_excel(self, ticker: str) -> bytes | None:
+        """Modello di valutazione in Excel con le formule (None se mancano ricavi, azioni o prezzi)."""
+        from modules.excel_model import company_model
+
+        return company_model(self.ctx, ticker) or None
+
+    def export_pdf(self, ticker: str) -> bytes:
+        """Sintesi in PDF: giudizio, tesi, numeri, concorrenti, valutazione di partenza."""
+        from modules.research_pdf import company_pdf
+
+        return company_pdf(self.ctx, ticker)

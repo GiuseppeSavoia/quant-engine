@@ -128,3 +128,16 @@ def tone_of(v) -> str:
     """"pos", "neg" o "flat" secondo il segno (per il colore di una variazione)."""
     x = _num(v)
     return "flat" if x is None or x == 0 else ("pos" if x > 0 else "neg")
+
+
+# numeri all'inglese nei testi di altri moduli (valutazione, strategia, qualità dei dati): a schermo in italiano.
+# NON per i testi del giudizio: modules/verdict.py scrive già in italiano e convertire di nuovo guasterebbe "1.234,5"
+_EN_NUMBER = re.compile(r"\d[\d,]*\.\d+|\d{1,3}(?:,\d{3})+")
+
+
+def it_text(text: str) -> str:
+    """"ROIC 12.5% >= 0.60, 1,234.5" -> "ROIC 12,5% ≥ 0,60, 1.234,5" (solo i numeri con decimali o migliaia)."""
+    if not text:
+        return text
+    out = _EN_NUMBER.sub(lambda m: it_number(m.group(0)), str(text))
+    return out.replace(">=", "≥").replace("<=", "≤")

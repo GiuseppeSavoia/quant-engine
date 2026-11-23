@@ -61,6 +61,66 @@ class MethodService(Service):
     def save_profile(self, profile: dict) -> None:
         self.db.save_profile({k: v for k, v in profile.items() if k in method.PROFILE_DEFAULTS})
 
+    # ------------------------------------------------------------------ pagina "Il mio metodo" (interfaccia web)
+    def method_page(self) -> dict:
+        """Profilo con le scelte possibili, metriche personali, nomi delle metriche da usare nelle formule, formati,
+        domande della checklist."""
+        items = self.ctx.checklist_items()
+        return {
+            "profile": self.ctx.profile(), "styles": method.STYLES, "horizons": method.HORIZONS,
+            "custom_metrics": self.db.load_custom_metrics(),
+            "formats": [{"value": k, "label": v} for k, v in metrics_mod.CUSTOM_FORMATS.items()],
+            "formula_names": [{"key": m.key, "label": m.label, "group": m.group} for m in metrics_mod.BASE_METRICS]
+            + [{"key": "price", "label": "Prezzo", "group": "Prezzo"}],
+            "functions": ["min(a, b)", "max(a, b)", "abs(a)", "log(a)", "sqrt(a)"],
+            "checklist": [{"id": int(r["id"]), "question": r["question"], "help": r["help"] or "",
+                           "weight": float(r["weight"])} for _, r in items.iterrows()] if not items.empty else [],
+        }
+
+    def formula_preview(self, formula: str, better: str | None = None, top: int = 10) -> dict:
+        """Una formula calcolata oggi: per quante aziende si può, mediana, 10° e 90° percentile e (se ha un verso)
+        le migliori. ValueError (messaggio in italiano) se la formula non va."""
+        values = self.ctx.preview_formula(formula)
+        ok = values.dropna()
+        ok = ok[np.isfinite(ok)]
+        out = {"computable": int(len(ok)), "total": int(len(values)), "median": None, "p10": None, "p90": None, "best": []}
+        if not ok.empty:
+            out.update(median=float(ok.median()), p10=float(ok.quantile(0.1)), p90=float(ok.quantile(0.9)))
+            if better in ("high", "low"):
+                best = ok.sort_values(ascending=better == "low").head(top)
+                out["best"] = [{"ticker": t, "name": self.ctx.info(t).get("name") or "", "value": float(v)}
+                               for t, v in best.items()]
+        return out
+
+    def create_custom_metric(self, label: str, formula: str, fmt: str = "num", better: str | None = None,
+                             description: str = "") -> dict:
+        """Nuova metrica personale dal nome (la chiave si ricava dal nome). ValueError se nome, formula o formato
+        non vanno."""
+        label, formula = (label or "").strip(), (formula or "").strip()
+        if not label or not formula:
+            raise ValueError("Servono il nome e la formula.")
+        if fmt not in metrics_mod.CUSTOM_FORMATS:
+            raise ValueError(f"Formato non previsto: {fmt}")
+        if better not in ("high", "low", None):
+            raise ValueError("Il verso è «più alta», «più bassa» o nessuno.")
+        definition = {"key": metrics_mod.custom_key(label), "label": label, "formula": formula, "fmt": fmt,
+                      "better": better, "description": (description or "").strip()}
+        self.ctx.save_custom_metric(definition)
+        return definition
+
+    def save_checklist_question(self, question: str, help_text: str = "", weight: float = 1.0,
+                                item_id: int | None = None) -> None:
+        question = (question or "").strip()
+        if not question:
+            raise ValueError("Scrivi la domanda.")
+        if not 0 <= float(weight) <= 3:
+            raise ValueError("Il peso va da 0 a 3.")
+        self.db.save_checklist_item(question, (help_text or "").strip(), float(weight), item_id=item_id)
+
+    def remove_checklist_question(self, item_id: int) -> None:
+        """Toglie la domanda (i voti già dati restano nel database, ma non contano più)."""
+        self.db.deactivate_checklist_item(int(item_id))
+
     # ------------------------------------------------------------------ dati inseriti a mano
     def manual_table(self, ticker: str, kind: str = "annual", amount_unit: float = 1e6, share_unit: float = 1e6,
                      periods: int = 8) -> pd.DataFrame:

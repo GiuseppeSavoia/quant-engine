@@ -140,3 +140,88 @@ def test_facade_overrides_reach_services(cfg, demo_db, tmp_path, monkeypatch):
 
     f = Fixed(cfg, demo_db, tmp_path)
     assert f.cost_of_capital(f.index_tickers[0])["erp"] == 0.05
+
+
+# ---------------------------------------------------------------- fase 1a (docs/piano_frontend.md): scritture e
+# letture dell'utente e calcoli della scheda passano dai servizi, non dalle pagine
+def test_price_targets_and_alerts_through_watch_service(app):
+    w = WatchService(app)
+    t = app.index_tickers[0]
+    assert w.price_target(t) == {}
+    with pytest.raises(ValueError, match="almeno una"):
+        w.set_price_target(t)
+    with pytest.raises(ValueError, match="più bassa"):
+        w.set_price_target(t, buy_below=50.0, sell_above=40.0)
+    w.set_price_target(t, buy_below=40.0, note="")
+    assert w.price_target(t) == {"buy_below": 40.0, "sell_above": None, "note": ""}
+    w.delete_price_target(t)
+    assert w.price_target(t) == {}
+    v0 = w.user_data_version()
+    assert isinstance(v0, str)
+    ids = app.db.add_alerts([{"ticker": t, "code": "MOV", "key": "k", "message": "-12% in un mese"}],
+                            created_at="2026-11-20T10:00:00")
+    a = w.active_alerts(t)
+    assert list(a["id"]) == ids and a["seen_at"].isna().all()
+    w.mark_alerts_seen(ids)
+    w.mark_alerts_seen([])  # niente da segnare: nessun errore
+    assert w.active_alerts(t)["seen_at"].notna().all()
+
+
+def test_judgment_service_matches_the_modules(app):
+    from modules import changes, verdict
+    from modules.services.judgment import JudgmentService
+
+    j = JudgmentService(app)
+    t = app.index_tickers[0]
+    v = j.company_verdict(t)
+    assert v.category == verdict.assess_ticker(app, t).category
+    assert j.thesis_inputs(t) == ({}, None) or isinstance(j.thesis_inputs(t)[0], dict)
+    wc = j.what_changed(t, app.info(t).get("sector"), "USD")
+    assert wc.keys() == (changes.what_changed(app.data, t, cfg=app.cfg, sector=app.info(t).get("sector"),
+                                              currency="USD") or {}).keys()
+
+
+def test_estimates_service_overview(app):
+    from modules.services.estimates import EstimatesService
+
+    e = EstimatesService(app)
+    t = app.index_tickers[0]
+    assert e.estimates(t).empty and e.estimates_overview(t, online=False) == {"empty": True}
+    csv = ("ticker,metric,period,value,low,high,analysts,source,date\n"
+           f"{t},eps,0y,5.0,4.5,5.5,10,CSV,2026-10-01\n{t},eps,+1y,6.0,5.0,7.0,10,CSV,2026-10-01\n"
+           f"{t},revenue,0y,1000000000,,,8,CSV,2026-10-01\n{t},price_target,12m,120,90,150,,CSV,2026-10-01\n")
+    n, tickers = e.import_estimates_csv(csv)
+    assert n == 4 and tickers == [t]
+    view = e.estimates_overview(t, online=False)
+    assert view["empty"] is False and view["currency"]
+    assert "price_target" not in set(view["table"]["metric"])
+    rev = view["table"].loc[view["table"]["metric"] == "revenue", "avg"]
+    assert rev.iloc[0] == pytest.approx(1000.0)  # ricavi in milioni nella tabella
+    assert {"pe_ntm", "price_target", "upside"} <= set(view["summary"])
+    with pytest.raises(Exception):
+        e.import_estimates_csv("non,è,un,csv\n1,2")
+
+
+def test_statements_service_ready_to_show(app, monkeypatch):
+    """Bilanci pronti da mostrare: tabella degli ultimi 12 periodi, serie lunghe quanto i periodi, segni sulle fonti
+    di riserva (solo quelle usate), vista sconosciuta = errore."""
+    from modules.services.statements import TABLE_PERIODS, StatementsService
+
+    s = StatementsService(app)
+    t = app.index_tickers[0]
+    out = s.financial_statements(t, "annual")
+    assert out["empty"] is False and out["marks"] == {}
+    n = len(out["periods"])
+    assert out["table_from"] == max(0, n - TABLE_PERIODS)
+    assert [r["key"] for r in out["rows"]][:2] == ["revenue", "net_income"]
+    assert {r["kind"] for r in out["rows"]} >= {"money_mln", "pct"}
+    fin = app.financials(t)
+    src = pd.DataFrame("sec", index=fin.index, columns=["revenue"])
+    src.iloc[-1, 0] = "yahoo_fill"
+    monkeypatch.setattr(app, "financial_sources", lambda ticker, quarterly=False: src)
+    marked = s.financial_statements(t, "annual")
+    rev = next(r for r in marked["rows"] if r["key"] == "revenue")
+    assert rev["marks"][-1] == "yahoo_fill" and set(rev["marks"][:-1]) == {""}
+    assert marked["marks"]["yahoo_fill"]["symbol"] == "*"
+    with pytest.raises(ValueError):
+        s.financial_statements(t, "settimanale")

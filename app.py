@@ -26,7 +26,9 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-st.set_page_config(page_title="QUANT_ENGINE", page_icon="📈", layout="wide", initial_sidebar_state="collapsed")
+ASSETS = Path(__file__).resolve().parent / "assets"
+st.set_page_config(page_title="QuantEngine", page_icon=str(ASSETS / "icon.svg"), layout="wide",
+                   initial_sidebar_state="collapsed")
 
 common = importlib.import_module("ui.common")
 # Le costanti del tema (TERMINAL, SERIES, UP/DOWN, CSS...) si calcolano quando si importa ui.common, mentre prima
@@ -42,6 +44,8 @@ from ui import nav, shell  # noqa: E402
 
 if st.session_state.pop("ui_reload", False):
     st.html("<script>window.location.reload()</script>", unsafe_allow_javascript=True)
+st.logo(str(ASSETS / ("logo_dark.svg" if common.TERMINAL else "logo_light.svg")),
+        size="large")  # marchio a sinistra del menu in alto (con icon_image Streamlit mostrerebbe solo l'icona)
 st.html(common.APP_CSS)  # token e componenti per i due aspetti (ui/common.py)
 _navigation = nav.navigation()
 _crumbs = shell._command_bar(_navigation)

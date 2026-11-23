@@ -7,7 +7,32 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from modules.formats import fmt
 from modules.services.base import Service
+
+
+
+# valute delle operazioni e valuta proposta dal suffisso del simbolo Yahoo (anche la pagina Streamlit le usa)
+SUFFIX_CCY = {"MI": "EUR", "DE": "EUR", "F": "EUR", "PA": "EUR", "AS": "EUR", "MC": "EUR", "BR": "EUR", "LS": "EUR",
+              "VI": "EUR", "HE": "EUR", "IR": "EUR", "SW": "CHF", "L": "GBP", "CO": "DKK", "ST": "SEK", "OL": "NOK",
+              "TO": "CAD", "T": "JPY", "HK": "HKD"}
+CURRENCIES = ["EUR", "USD", "GBP", "CHF", "DKK", "SEK", "NOK", "CAD", "JPY", "HKD"]
+
+
+def guess_currency(symbol: str) -> str:
+    """Valuta proposta dal suffisso del simbolo Yahoo (.MI -> EUR); nessun suffisso = borsa americana (USD)."""
+    s = (symbol or "").strip().upper()
+    return SUFFIX_CCY.get(s.rsplit(".", 1)[1], "EUR") if "." in s else "USD"
+
+
+def held_quantity(tx: pd.DataFrame, ticker: str, day) -> float:
+    """Azioni di `ticker` possedute alla data `day` (acquisti meno vendite fino a quel giorno compreso)."""
+    if tx is None or tx.empty:
+        return 0.0
+    t = tx[(tx["ticker"] == ticker) & tx["kind"].isin(["BUY", "SELL"])
+           & (pd.to_datetime(tx["date"]) <= pd.Timestamp(day))]
+    sign = np.where(t["kind"] == "BUY", 1.0, -1.0)
+    return float((sign * pd.to_numeric(t["quantity"], errors="coerce").fillna(0.0)).sum())
 
 
 class PortfolioService(Service):
@@ -137,3 +162,216 @@ class PortfolioService(Service):
         if not out.empty:
             out.insert(2, "name", [self.ctx.info(t).get("name") or "" for t in out["ticker"]])
         return out
+
+    # ------------------------------------------------------------------ diario delle decisioni (pagina Diario)
+    def journal_benchmark(self) -> str:
+        return self.cfg.get("my_portfolio", {}).get("benchmark") or self.data.benchmark or "indice"
+
+    def journal_page(self) -> dict:
+        """Il diario pronto: riepilogo (decisioni, giudicabili, quante con ragione, revisioni scadute), le decisioni
+        da rivedere e tutte le decisioni con rendimento, indice, differenza ed esito (dopo 3 mesi)."""
+        from modules import journal
+
+        out = self.ctx.journal_view()
+        h = journal.hit_rate(out) if not out.empty else {"judged": 0, "right": 0, "rate": None, "by_action": {}}
+        rows = []
+        for _, r in (out.iterrows() if not out.empty else iter(())):
+            right = r.get("right")
+            rows.append({"id": int(r["id"]), "date": r["date"], "ticker": r["ticker"], "name": r.get("name") or "",
+                         "action": r["action"], "action_label": journal.ACTIONS.get(r["action"], r["action"]),
+                         "price": r.get("price"), "currency": self.ctx.currency(r["ticker"]),
+                         "ret": r.get("ret"), "bench_ret": r.get("bench_ret"), "excess": r.get("excess"),
+                         "right": None if right is None or (isinstance(right, float) and np.isnan(right)) else bool(right),
+                         "days": int(r["days"]) if pd.notna(r.get("days")) else None,
+                         "reason": r.get("reason"), "change_mind": r.get("change_mind"),
+                         "review_date": r.get("review_date"), "review_due": bool(r.get("review_due")),
+                         "verdict": r.get("verdict") if isinstance(r.get("verdict"), str) else None,
+                         "review_note": r.get("review_note") if isinstance(r.get("review_note"), str) else None})
+        return {"benchmark": self.journal_benchmark(), "actions": [{"value": k, "label": v} for k, v in journal.ACTIONS.items()],
+                "verdicts": journal.VERDICTS, "min_days": journal.MIN_DAYS_FOR_VERDICT,
+                "summary": {"decisions": len(rows), "judged": h["judged"], "right": h["right"], "rate": h["rate"],
+                            "due": sum(1 for r in rows if r["review_due"])},
+                "entries": rows}
+
+    def add_journal_decision(self, ticker: str, action: str, reason: str, change_mind: str | None = None,
+                             price: float | None = None, review_date=None) -> int:
+        """Annota una decisione; prezzo vuoto = ultima chiusura, revisione vuota = fra 6 mesi. ValueError con un
+        messaggio da mostrare se mancano l'azienda o il perché o la decisione non è tra quelle previste."""
+        from modules import journal
+
+        if ticker not in set(self.ctx.tickers):
+            raise ValueError(f"Azienda sconosciuta: {ticker}")
+        if action not in journal.ACTIONS:
+            raise ValueError(f"Decisione non prevista: {action} (ammesse: {', '.join(journal.ACTIONS)})")
+        if not (reason or "").strip():
+            raise ValueError("Scrivi il perché: la tesi in due righe.")
+        if price is None:
+            px = self.data.close[ticker].dropna() if ticker in self.data.close else pd.Series(dtype=float)
+            price = float(px.iloc[-1]) if not px.empty else None
+        elif not (price > 0):
+            raise ValueError("Il prezzo deve essere positivo.")
+        review = pd.Timestamp(review_date) if review_date else pd.Timestamp.today().normalize() + pd.DateOffset(months=6)
+        return self.db.add_decision({"ticker": ticker, "date": pd.Timestamp.today().normalize(), "action": action,
+                                     "price": price, "reason": reason.strip(),
+                                     "change_mind": (change_mind or "").strip() or None, "review_date": review})
+
+    def review_journal_decision(self, dec_id: int, verdict: str, note: str = "") -> None:
+        from modules import journal
+
+        if verdict not in journal.VERDICTS:
+            raise ValueError("Scegli un giudizio: avevo ragione, avevo torto o troppo presto.")
+        ids = set(self.db.load_decisions_journal()["id"].astype(int))
+        if int(dec_id) not in ids:
+            raise ValueError(f"Decisione sconosciuta: {dec_id}")
+        self.db.review_decision(int(dec_id), (note or "").strip(), verdict)
+
+    def delete_journal_decision(self, dec_id: int) -> None:
+        self.db.delete_decision(int(dec_id))
+
+    # ------------------------------------------------------------------ pagina Portafoglio (interfaccia web)
+    def portfolio_page(self) -> dict:
+        """Il portafoglio pronto da mostrare, solo con i dati salvati (prezzi e cambi del database; un titolo appena
+        inserito ha il prezzo dal prossimo aggiornamento): riepilogo in euro, avvisi, posizioni con il giudizio,
+        composizione, andamento contro il benchmark, operazioni, dividendi e tasse stimate."""
+        from modules import portfolio as pf
+
+        ctx = self.ctx
+        view = ctx.portfolio_view(None)
+        tx = view["tx"]
+        base = {"kinds": [{"value": k, "label": v} for k, v in pf.KINDS.items()], "currencies": CURRENCIES,
+                "tax_note": "stima, non è consulenza fiscale"}
+        if tx.empty:
+            return {**base, "empty": True}
+        pos = view.get("positions", pd.DataFrame())
+        notes = []
+        summary = None
+        if not pos.empty:
+            value, cost = pos["value_eur"].sum(min_count=1), pos["cost_eur"].sum(min_count=1)
+            complete = bool(pos["value_eur"].notna().all())
+            gain = value - cost if complete else np.nan
+            realized = view["realized"]["gain_eur"].sum() if not view["realized"].empty else 0.0
+            div = view["dividends"]
+            h = view.get("history", pd.DataFrame())
+            vs = np.nan
+            if complete and not h.empty and "benchmark" in h:
+                last = h.dropna(subset=["invested", "benchmark"]).tail(1)
+                if not last.empty and last["invested"].iloc[0] > 0:
+                    vs = (value - last["benchmark"].iloc[0]) / last["invested"].iloc[0]
+            if not pos["cost_eur"].notna().all():  # costo in euro mancante: niente totali parziali
+                cost, gain, vs = np.nan, np.nan, np.nan
+            summary = {"value": value if complete else None, "invested": cost, "gain": gain,
+                       "gain_pct": gain / cost if cost and np.isfinite(cost) and cost else None, "vs_benchmark": vs,
+                       "realized": realized, "dividends_net": float(div["net_eur"].sum()) if not div.empty else 0.0}
+            days = [self.data.close[t].last_valid_index() for t in pos["ticker"] if t in self.data.close]
+            days = [x for x in days if x is not None]
+            summary["prices_at"] = min(days) if days else None
+            if view.get("missing_prices"):
+                notes.append({"tone": "warn", "title": "Prezzi mancanti:", "text": f"Senza prezzo: {', '.join(view['missing_prices'])}. "
+                              "Il simbolo Yahoo è giusto? Il prezzo arriva con il prossimo aggiornamento dei dati; fino "
+                              "ad allora valore e guadagno totali restano vuoti."})
+            mfx = view.get("missing_fx")
+            if mfx is not None and not mfx.empty:
+                which = ", ".join(f"{r.ticker} del {fmt(r.date, 'date')}" for r in mfx.itertuples(index=False))
+                notes.append({"tone": "warn", "title": "Cambio dell'operazione mancante:",
+                              "text": f"{which}: manca il cambio di quel giorno ({', '.join(sorted(set(mfx['currency'])))} "
+                                      "per 1 €), quindi il costo in euro e i totali restano vuoti. Arriva con il prossimo "
+                                      "aggiornamento dei dati, oppure reinserisci l'operazione con il cambio dell'estratto "
+                                      "del broker."})
+            no_fx = sorted(pos.loc[pos["value_eur"].isna() & pos["price"].notna(), "ticker"])
+            if no_fx:
+                notes.append({"tone": "warn", "title": "Cambio mancante:",
+                              "text": f"{', '.join(no_fx)}: manca il cambio di oggi nel database, quindi il valore in euro "
+                                      "resta vuoto. Arriva con il prossimo aggiornamento dei dati."})
+        known = set(ctx.tickers)
+        stocks = [t for t in pos.get("ticker", []) if t in known]
+        verdicts = ctx.verdict_overview(stocks) if stocks else pd.DataFrame()
+        positions = []
+        for _, r in (pos.sort_values("value_eur", ascending=False, na_position="last").iterrows() if not pos.empty else iter(())):
+            t = r["ticker"]
+            positions.append({**{k: r.get(k) for k in ("ticker", "name", "sector", "quantity", "avg_cost", "price",
+                                                       "currency", "value_eur", "cost_eur", "weight", "gain_eur",
+                                                       "gain_pct")},
+                              "known": t in known,
+                              "category": verdicts.at[t, "category"] if not verdicts.empty and t in verdicts.index else None,
+                              "verdict": verdicts.at[t, "verdict"] if not verdicts.empty and t in verdicts.index else None})
+        composition = []
+        if not pos.empty and pos["value_eur"].notna().any() and pos["value_eur"].sum() > 0:
+            total = pos["value_eur"].sum()
+            for kind, col in (("Settore", "sector"), ("Valuta", "currency")):
+                for k, v in pos.groupby(col)["value_eur"].sum().sort_values(ascending=False).items():
+                    composition.append({"kind": kind, "name": k, "share": float(v / total)})
+        h = view.get("history", pd.DataFrame())
+        no_hist = sorted(t for t in pos.get("ticker", []) if t not in self.data.close or not self.data.close[t].notna().any())
+        history = None
+        if not no_hist and not h.empty and h["value"].notna().any():
+            if len(h) > 600:  # al massimo ~600 punti: settimane
+                h = h.resample("W-FRI").last().dropna(how="all")
+            history = {"dates": list(h.index), "value": h["value"].tolist(), "invested": h["invested"].tolist(),
+                       "benchmark": h["benchmark"].tolist() if "benchmark" in h else None}
+        txv = tx.sort_values(["date", "id"], ascending=False)
+        transactions = [{"id": int(r["id"]), "date": r["date"], "kind": r["kind"], "kind_label": pf.KINDS.get(r["kind"], r["kind"]),
+                         "ticker": r["ticker"], "quantity": r["quantity"], "price": r["price"], "currency": r["currency"],
+                         "fx": r["fx"] if r["currency"] != "EUR" else None, "fees": r["fees"], "note": r["note"]}
+                        for _, r in txv.iterrows()]
+        div = view.get("dividends", pd.DataFrame())
+        taxes = view.get("taxes") or {}
+        return {**base, "empty": False, "benchmark": view["benchmark"], "summary": summary, "notes": notes,
+                "positions": positions, "composition": composition, "history": history, "history_missing": no_hist,
+                "transactions": transactions,
+                "dividends": div.sort_values("date", ascending=False).to_dict("records") if div is not None and not div.empty else [],
+                "taxes": {"unrealized_gain": taxes.get("unrealized_gain"), "tax_if_sold": taxes.get("tax_if_sold"),
+                          "carry": taxes.get("carry") or [], "incomplete": bool(taxes.get("incomplete")),
+                          "by_year": [{"year": str(y), "net_gain": v["net_gain"], "loss_used": v.get("loss_used", 0.0),
+                                       "tax": v["tax"]} for y, v in sorted((taxes.get("by_year") or {}).items())]}
+                if taxes else None}
+
+    def add_transaction(self, ticker: str, kind: str, day, quantity: float, price: float, currency: str | None = None,
+                        fx: float | None = None, fees: float | None = None, note: str | None = None,
+                        reason: str | None = None) -> int:
+        """Aggiunge un'operazione (acquisto, vendita, dividendo) con gli stessi controlli della pagina Streamlit:
+        campi obbligatori, simbolo senza spazi, niente vendite oltre le azioni possedute (anche nelle vendite
+        successive). Il perché, se c'è, va nel diario delle decisioni. ValueError con un messaggio da mostrare."""
+        from modules import portfolio as pf
+
+        ticker = (ticker or "").strip().upper()
+        missing = [n for n, ok in (("simbolo", bool(ticker)), ("quantità", bool(quantity) and quantity > 0),
+                                   ("prezzo", bool(price) and price > 0)) if not ok]
+        if missing:
+            raise ValueError("Mancano: " + ", ".join(missing) + ".")
+        if " " in ticker:
+            raise ValueError("Il simbolo non può contenere spazi.")
+        if kind not in pf.KINDS:
+            raise ValueError(f"Tipo di operazione non previsto: {kind}")
+        currency = currency or guess_currency(ticker)
+        if currency not in CURRENCIES:
+            raise ValueError(f"Valuta non prevista: {currency}")
+        day = pd.Timestamp(day).normalize()
+        if day > pd.Timestamp.today().normalize():
+            raise ValueError("La data non può essere nel futuro.")
+        tx_all = self.db.load_transactions()
+        if kind == "SELL":
+            held = held_quantity(tx_all, ticker, day)
+            if quantity > held + 1e-9:
+                raise ValueError(f"Alla data scelta possiedi {fmt(held, 'num', digits=0)} {ticker}: non puoi venderne "
+                                 f"{fmt(quantity, 'num', digits=0)}." if held > 0 else
+                                 f"Alla data scelta non possiedi {ticker}: inserisci prima l'acquisto.")
+            row = {"id": int(tx_all["id"].max()) + 1 if not tx_all.empty else 1, "ticker": ticker, "kind": kind,
+                   "date": day, "quantity": quantity}
+            bad = [b for b in pf.oversold(pd.concat([tx_all, pd.DataFrame([row])], ignore_index=True))
+                   if b not in pf.oversold(tx_all)]
+            if bad:
+                b = bad[0]
+                raise ValueError(f"Con questa vendita la vendita del {fmt(b['date'], 'date')} di "
+                                 f"{fmt(b['sold'], 'num', digits=0)} {b['ticker']} supererebbe le azioni possedute "
+                                 f"({fmt(b['held'], 'num', digits=0)}).")
+        tx_id = self.db.add_transaction({"ticker": ticker, "kind": kind, "date": day, "quantity": float(quantity),
+                                         "price": float(price), "currency": currency, "fx": fx or None,
+                                         "fees": fees or 0.0, "note": (note or "").strip() or None})
+        if (reason or "").strip() and kind in ("BUY", "SELL"):
+            self.db.add_decision({"ticker": ticker, "date": day, "action": kind, "price": float(price),
+                                  "reason": reason.strip(), "tx_id": tx_id,
+                                  "review_date": day + pd.DateOffset(months=6)})
+        return tx_id
+
+    def delete_transaction(self, tx_id: int) -> None:
+        self.db.delete_transaction(int(tx_id))

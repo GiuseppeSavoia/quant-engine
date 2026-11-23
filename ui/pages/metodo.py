@@ -103,28 +103,22 @@ def _custom_metrics_section(d: DashboardData):
                    "Le percentuali sono frazioni: 15% si scrive 0.15.")
     if formula:
         try:
-            values = d.preview_formula(formula)
-            table = d.explore_table()
-            ok = values.dropna()
+            prev = d.formula_preview(formula, better)  # stessi numeri dell'interfaccia web (servizio method)
             kind = {"pct": "pct", "x": "mult"}.get(fmt, "num")
-            if ok.empty:
-                C.notice(f"Oggi non è calcolabile per nessuna delle {len(values)} aziende: a tutte manca almeno "
+            if not prev["computable"]:
+                C.notice(f"Oggi non è calcolabile per nessuna delle {prev['total']} aziende: a tutte manca almeno "
                          "una delle metriche usate.", "warn")
             else:
-                st.caption(f"Oggi calcolabile per {len(ok)} aziende su {len(values)}. Mediana "
-                           f"{C.fmt(ok.median(), kind)}, dal 10° al 90° percentile {C.fmt(ok.quantile(0.1), kind)} "
-                           f"– {C.fmt(ok.quantile(0.9), kind)}.")
-            if better and not ok.empty:
-                top = ok.sort_values(ascending=better == "low").head(10)
-                st.caption("Le 10 migliori oggi: " + ", ".join(
-                    f"{t} ({table.at[t, 'name'] if t in table.index else ''})" for t in top.index))
+                st.caption(f"Oggi calcolabile per {prev['computable']} aziende su {prev['total']}. Mediana "
+                           f"{C.fmt(prev['median'], kind)}, dal 10° al 90° percentile {C.fmt(prev['p10'], kind)} "
+                           f"– {C.fmt(prev['p90'], kind)}.")
+            if prev["best"]:
+                st.caption("Le 10 migliori oggi: " + ", ".join(f"{b['ticker']} ({b['name']})" for b in prev["best"]))
         except ValueError as exc:
             st.error(str(exc))
     if st.button("Salva la metrica", type="primary", disabled=not (label and formula)):
-        definition = {"key": metrics_mod.custom_key(label), "label": label.strip(), "formula": formula.strip(),
-                      "fmt": fmt, "better": better, "description": description.strip()}
         try:
-            d.save_custom_metric(definition)
+            d.create_custom_metric(label, formula, fmt, better, description)
             for k in ("cm_label", "cm_formula", "cm_desc"):
                 st.session_state.pop(k, None)
             st.session_state["method_toast"] = f"Metrica \"{label.strip()}\" salvata"
@@ -147,17 +141,21 @@ def _checklist_section(d: DashboardData):
             w = st.slider("Peso", 0.0, 3.0, float(item["weight"]), 0.5, key=f"ci_w_{i}")
             b1, b2 = st.columns(2)
             if b1.button("Salva la domanda", key=f"ci_save_{i}", type="primary"):
-                d.db.save_checklist_item(q, h, w, item_id=i)
+                try:
+                    d.save_checklist_question(q, h, w, item_id=i)
+                except ValueError as exc:
+                    st.error(str(exc))
+                    return
                 st.session_state["method_toast"] = "Domanda salvata"
                 st.rerun()
             if b2.button("Togli questa domanda", key=f"ci_del_{i}"):
-                d.db.deactivate_checklist_item(i)
+                d.remove_checklist_question(i)
                 st.rerun()
     st.html(C.panel_title_html("Nuova domanda"))
     q = st.text_input("Domanda", key="ci_new_q", placeholder="es. Il debito è gestibile anche in una recessione?")
     h = st.text_input("Come rispondere (facoltativo)", key="ci_new_h")
     if st.button("Aggiungi la domanda", disabled=not q, type="primary"):
-        d.db.save_checklist_item(q.strip(), h.strip())
+        d.save_checklist_question(q, h)
         st.session_state["method_toast"] = "Domanda aggiunta"
         for k in ("ci_new_q", "ci_new_h"):
             st.session_state.pop(k, None)

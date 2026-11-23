@@ -162,74 +162,9 @@ def _fv_history(_d: DashboardData, ticker: str, key: str) -> pd.DataFrame:  # no
 
 
 # ---------------------------------------------------------------------------------------------- GP: grafico del prezzo
-PERIODS = ["1M", "3M", "6M", "YTD", "1A", "5A", "MAX"]
-PERIOD_DAYS = {"1M": 21, "3M": 63, "6M": 126, "1A": 252, "5A": 1260}
-LONG_PERIODS = {"5A", "MAX"}            # candele giornaliere illeggibili: predefinita la linea, candele aggregate
-CHART_DEFAULTS = DEFAULTS["price_chart"]  # soglie del grafico: `price_chart:` in config.yaml
-VOL_MA = 20
-BAR_NAME = {"D": ("seduta", "sedute"), "W": ("settimana", "settimane"), "M": ("mese", "mesi")}
-
-
-def period_start(px: pd.DataFrame, period: str) -> pd.Timestamp:
-    """Primo giorno del periodo scelto (sulle sedute disponibili)."""
-    if period == "YTD":
-        first = px.index[px.index >= pd.Timestamp(px.index[-1].year, 1, 1)]
-        return first[0] if len(first) else px.index[-1]
-    days = PERIOD_DAYS.get(period)
-    return px.index[-min(days, len(px))] if days else px.index[0]
-
-
-def chart_settings(cfg: dict | None) -> dict:
-    """`price_chart:` della configurazione sopra i default (monthly_after_years, max_missing_open, fair_value_range)."""
-    return {**CHART_DEFAULTS, **((cfg or {}).get("price_chart") or {})}
-
-
-def bar_frequency(px: pd.DataFrame, period: str, monthly_after_years: float | None = None) -> str:
-    """D per i periodi fino a 1A; W per 5A (e MAX corto); M per MAX su più di `monthly_after_years` anni."""
-    if period not in LONG_PERIODS:
-        return "D"
-    years = CHART_DEFAULTS["monthly_after_years"] if monthly_after_years is None else monthly_after_years
-    if period == "MAX" and (px.index[-1] - px.index[0]).days > years * 365:
-        return "M"
-    return "W"
-
-
-def ohlc_bars(px: pd.DataFrame, freq: str) -> pd.DataFrame:
-    """Barre OHLCV con variazione sulla chiusura precedente e media dei volumi su 20 barre. Le barre aggregate
-    (settimana/mese) hanno come data l'ultima seduta del gruppo, così l'asse resta sui giorni di borsa veri."""
-    cols = [c for c in ("open", "high", "low", "close", "volume") if c in px]
-    df = px[cols].copy()
-    for c in ("open", "high", "low", "volume"):
-        if c not in df:
-            df[c] = np.nan
-    if freq != "D":
-        key = df.index.to_period("W-FRI" if freq == "W" else "M")
-        g = df.assign(date=df.index).groupby(key)
-        df = pd.DataFrame({
-            "open": g["open"].first(), "high": g["high"].max(), "low": g["low"].min(), "close": g["close"].last(),
-            "volume": g["volume"].sum(min_count=1), "date": g["date"].last(),
-        }).set_index("date")
-        df.index.name = None
-    df["change"] = df["close"].pct_change()
-    df["vol_ma"] = df["volume"].rolling(VOL_MA, min_periods=VOL_MA).mean()
-    return df
-
-
-def period_summary(view: pd.DataFrame) -> dict:
-    """Sintesi del periodo: rendimento, massimo e minimo (sulle massime/minime se ci sono), volatilità annua dalle
-    chiusure giornaliere, distanza dell'ultima chiusura dal massimo, drawdown massimo delle chiusure."""
-    close = view["close"]
-    high = view["high"] if "high" in view and view["high"].notna().any() else close
-    low = view["low"] if "low" in view and view["low"].notna().any() else close
-    rets = np.log(close).diff().dropna()
-    hi = float(high.max())
-    return {
-        "return": float(close.iloc[-1] / close.iloc[0] - 1),
-        "high": hi, "high_date": high.idxmax(), "low": float(low.min()), "low_date": low.idxmin(),
-        "volatility": float(rets.std() * np.sqrt(252)) if len(rets) > 1 else np.nan,
-        "from_high": float(close.iloc[-1] / hi - 1),
-        "max_drawdown": float((close / close.cummax() - 1).min()),
-    }
+from modules.services.price_chart import (  # noqa: E402 - una sola definizione (servizio del grafico)
+    BAR_NAME, CHART_DEFAULTS, LONG_PERIODS, PERIOD_DAYS, PERIODS, VOL_MA, bar_frequency, chart_settings, ohlc_bars,
+    period_start, period_summary, reference_lines)
 
 
 def _hover_text(bars: pd.DataFrame, cur: str, unit: str) -> list[str]:
@@ -251,32 +186,8 @@ def _missing_days(index: pd.DatetimeIndex) -> list[str]:
 
 
 def _reference_lines(d: DashboardData, ticker: str) -> list[tuple[str, float, str]]:
-    """Il tuo fair value (note), le tue soglie "compra sotto"/"vendi sopra" e i valori per scenario dell'ultima
-    valutazione salvata (prezzi obiettivo). Terzo elemento: stile della linea ("buy"/"sell" = soglie)."""
-    out = []
-    fv = d.note(ticker).get("fair_value")
-    if fv is not None and pd.notna(fv) and float(fv) > 0:
-        out.append(("Il tuo fair value", float(fv), "dash"))
-    try:
-        diary = d.valuation_diary(ticker)
-    except Exception:  # noqa: BLE001 - il diario è un di più: il grafico va disegnato comunque
-        diary = pd.DataFrame()
-    try:  # le tue soglie di prezzo (scheda: "Soglie di prezzo"; Le mie aziende)
-        targets = d.db.load_price_targets()
-    except Exception:  # noqa: BLE001 - tabella assente in un database vecchio
-        targets = pd.DataFrame()
-    if not targets.empty and ticker in set(targets["ticker"]):
-        row = targets[targets["ticker"] == ticker].iloc[-1]
-        for col, label, style in (("buy_below", "Compra sotto", "buy"), ("sell_above", "Vendi sopra", "sell")):
-            v = pd.to_numeric(row.get(col), errors="coerce")
-            if pd.notna(v) and float(v) > 0:
-                out.append((label, float(v), style))
-    if not diary.empty:
-        last = diary.iloc[-1]
-        for name, v in (last.get("per_scenario") or {}).items():
-            if isinstance(v, (int, float)) and np.isfinite(v) and v > 0 and name != "Base":
-                out.append((f"Scenario {name} ({fmt(last['created_at'], 'date')})", float(v), "dot"))
-    return out
+    """Fair value, soglie e scenari dell'utente (modules/services/price_chart.reference_lines)."""
+    return reference_lines(d, ticker)
 
 
 def _price_tab(d: DashboardData, ticker: str, px: pd.DataFrame):

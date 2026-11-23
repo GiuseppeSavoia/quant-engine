@@ -21,7 +21,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from modules.dashboard_data import DashboardData
-from ui.common import DOWN, TERMINAL, UP, data
+from ui.common import DOWN, FONTS, TERMINAL, TOKENS, UP, data
 from ui.components import (
     NA, alert_row_html, badge, dense_table, empty_state, fmt, fmt_html, panel, ticker_link, tone_of, verdict_badge,
 )
@@ -263,8 +263,7 @@ def visible_columns(table: pd.DataFrame) -> dict:
 
 # avvisi: prima quelli che toccano la tesi (soglie, fair value, bilanci, giudizio, insider, 8-K), poi i movimenti di
 # prezzo, che restano in un riquadro richiuso (sono tanti e dicono poco da soli)
-ALERT_PRIORITY = ["PX-", "PX+", "FV", "FV~", "VRD", "CHG", "INS", "REV", "8K"]
-PRICE_MOVES = {"MOV", "MOV1", "52S"}
+from modules.alerts import ALERT_PRIORITY, PRICE_MOVES  # noqa: E402 - una sola definizione
 
 
 def _empty_mine():
@@ -494,13 +493,13 @@ def _heatmap(d: DashboardData, q: pd.DataFrame):
     values = list(sec["mcap"]) + list(df["mcap"])
     chg = list(sec["chg"]) + list(df["chg"])
     text = [fmt(c, "pct", signed=True) for c in chg]
-    mid = "#383835" if TERMINAL else "#f0efec"
+    mid = "#2a303b" if TERMINAL else "#e4e7ec"
     fig = go.Figure(go.Treemap(
         labels=labels, parents=parents, values=values, branchvalues="total", customdata=text,
         texttemplate="%{label}<br>%{customdata}", hovertemplate="%{label}: %{customdata}<extra></extra>",
         marker=dict(colors=chg, colorscale=[[0, DOWN], [0.5, mid], [1, UP]], cmid=0, cmin=-0.03, cmax=0.03,
-                    line=dict(width=1, color="#000" if TERMINAL else "#fff")),
-        textfont=dict(family="ui-monospace, Menlo, monospace", color="#ffffff", size=13), tiling=dict(pad=1)))
+                    line=dict(width=2, color=TOKENS["surface-1"])),
+        textfont=dict(family=FONTS["sans"], size=13), tiling=dict(pad=1)))
     # niente testo sotto i 12 px: nei riquadri troppo piccoli si nasconde (resta nel tooltip)
     fig.update_layout(height=380, margin=dict(l=0, r=0, t=0, b=0), uniformtext=dict(minsize=12, mode="hide"),
                       hoverlabel=dict(font_size=13))

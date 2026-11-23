@@ -15,38 +15,12 @@ import streamlit as st
 from modules.dashboard_data import DashboardData, FINANCIAL_ROWS, RATIO_ROWS
 from ui.common import SERIES, _layout
 from ui.components import NA, dense_table, empty_state, fmt
+from modules.services.statements import (MONTHS, PCT_ROWS, SOURCE_MARKS, month_label,  # noqa: F401
+                                         shares_summary)
+from modules.services.statements import period_labels as _period_labels
 
-MONTHS = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
-PCT_ROWS = ("revenue_growth", "gross_margin", "operating_margin", "net_margin", "fcf_margin")
 TABLE_PERIODS = 12
 VIEWS = ["Esercizi", "Trimestri singoli", "Ultimi 12 mesi a ogni trimestre"]
-
-
-def month_label(d, short_year: bool = True) -> str:
-    """"giu 25" (o "giu 2025")."""
-    d = pd.Timestamp(d)
-    return f"{MONTHS[d.month - 1]} {d:%y}" if short_year else f"{MONTHS[d.month - 1]} {d.year}"
-
-
-def _period_labels(fin: pd.DataFrame, quarterly: bool) -> list[str]:
-    """Etichette dei periodi: esercizio = anno (con il mese se non chiude a dicembre), trimestre = "giu 25", ultimi
-    12 mesi = "12 mesi a giu 25". Etichette doppie (due chiusure nello stesso mese) ricevono la data intera."""
-    ttm = fin["ttm"].astype(bool) if "ttm" in fin else pd.Series(False, index=fin.index)
-    out = []
-    for d, t in zip(fin.index, ttm):
-        d = pd.Timestamp(d)
-        if quarterly:
-            out.append(month_label(d))  # la vista dice già se sono trimestri singoli o ultimi 12 mesi
-        elif t:
-            out.append(f"12 mesi a {month_label(d)}")
-        else:
-            out.append(str(d.year) if d.month == 12 else month_label(d, short_year=False))
-    seen = {}
-    for i, lab in enumerate(out):
-        if lab in seen:
-            out[i] = f"{lab} ({pd.Timestamp(fin.index[i]):%d/%m})"
-        seen[lab] = i
-    return out
 
 
 def _bars(fin: pd.DataFrame, x: list[str], series: list[tuple[str, str]], height: int = 330):
@@ -59,17 +33,6 @@ def _bars(fin: pd.DataFrame, x: list[str], series: list[tuple[str, str]], height
     fig.update_yaxes(title="Miliardi", rangemode="tozero")
     fig.update_xaxes(type="category")
     return _layout(fig, height)
-
-
-def shares_summary(shares: pd.Series, labels: list[str]) -> str:
-    """Frase sulla variazione delle azioni nel periodo: "da 1.110,0 a 1.098,9 mln (−1,0%) tra 2015 e 2025"."""
-    s = pd.Series(shares.to_numpy(dtype=float), index=labels).dropna()
-    if len(s) < 2 or s.iloc[0] <= 0:
-        return ""
-    chg = s.iloc[-1] / s.iloc[0] - 1
-    verb = "in calo" if chg < -0.005 else "in aumento" if chg > 0.005 else "quasi invariate"
-    return (f"{verb}: da {fmt(s.iloc[0] / 1e6, 'num', digits=1)} a {fmt(s.iloc[-1] / 1e6, 'num', digits=1)} milioni "
-            f"({fmt(chg, 'pct', signed=True)}) tra {s.index[0]} e {s.index[-1]}")
 
 
 def _shares_chart(fin: pd.DataFrame, x: list[str]):
@@ -112,12 +75,6 @@ def financial_table(fin: pd.DataFrame, x: list[str]) -> pd.DataFrame:
 
     return pd.DataFrame({c: [cell(r, table.loc[r, c]) for r in rows] for c in table.columns},
                         index=[_unit_label(labels[r], "mln") if r == "shares" else labels[r] for r in rows])
-
-
-# fonti che non sono un deposito ufficiale: segnate nella tabella (simbolo, classe CSS, spiegazione)
-SOURCE_MARKS = {"yahoo_fill": ("*", "src-fb", "Dato di riserva da Yahoo: manca nel deposito ufficiale (SEC/ESEF), da "
-                                                "verificare sul documento"),
-                "manual": ("✎", "src-man", "Inserito a mano (pagina Inserisci dati)")}
 
 
 def source_marks(fin: pd.DataFrame, sources: pd.DataFrame, x: list[str]) -> pd.DataFrame:

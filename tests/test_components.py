@@ -154,7 +154,7 @@ def test_multiselect_chips_are_grey_in_streamlit_166():
     assert '[data-testid="stMultiSelectTagsContainer"] [data-tag]' in css
     rule = css[css.index('[data-testid="stMultiSelectTagsContainer"] [data-tag] {'):]
     rule = rule[:rule.index("}")]
-    assert "var(--surface-2)" in rule and "var(--border-ctl)" in rule
+    assert "var(--surface-2)" in rule and "var(--border)" in rule   # grigie a pillola, mai l'accento
 
 
 def test_no_raw_messages_or_terminal_commands_in_pages():

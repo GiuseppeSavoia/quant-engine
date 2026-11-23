@@ -13,6 +13,7 @@ import pandas as pd
 ACTIONS = {"BUY": "Compro", "SELL": "Vendo", "PASS": "Non compro", "WATCH": "Aspetto un prezzo migliore"}
 # per queste azioni "aver ragione" vuol dire che il titolo è andato peggio del benchmark
 BEARISH = {"SELL", "PASS"}
+VERDICTS = ["Avevo ragione", "Avevo torto", "Troppo presto"]  # giudizio dell'utente quando rivede una decisione
 MIN_DAYS_FOR_VERDICT = 90  # prima di 3 mesi il confronto dice poco
 
 

@@ -40,7 +40,10 @@ def parse(formula: str, allowed: set[str] | None = None) -> ast.Expression:
     try:
         tree = ast.parse(formula.strip(), mode="eval")
     except SyntaxError as exc:
-        raise FormulaError(f"Formula non valida: {exc.msg}") from None
+        # il messaggio di Python è in inglese: si dice dove si è fermato, in parole semplici
+        where = f" (verso il carattere {exc.offset})" if exc.offset else ""
+        raise FormulaError("Formula incompleta o scritta male" + where + ": controlla parentesi e operazioni "
+                           "(es. roic - 0.08, max(roic, 0) * 2).") from None
     for node in ast.walk(tree):
         if isinstance(node, (ast.Expression, ast.Load)) or type(node) in BINARY:
             continue

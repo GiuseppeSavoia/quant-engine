@@ -17,9 +17,7 @@ from ui.components import (CURRENCY_SYMBOL, empty_state, fmt, fmt_html, fmt_metr
 from ui.pages.azienda.valutazione import _multiples
 from ui.rules import PILLAR_HELP, pillar_grade, verdict_note, verdict_table
 
-MAX_COMPARE = 5
-PILLAR_ROWS = [("quality", "Qualità del business"), ("solidity", "Solidità finanziaria"), ("price", "Prezzo"),
-               ("flags", "Segnali d'allarme"), ("insiders", "Chi è dentro (solo contesto)")]
+from modules.services.compare import MAX_COMPARE, PILLAR_ROWS  # noqa: E402
 
 
 # ---------------------------------------------------------------- tabelle HTML (colonne = aziende)
@@ -108,26 +106,8 @@ def _group_html(d, table: pd.DataFrame, tickers: list[str], group: str) -> str:
 
 
 def _compare_table(d, tickers: list[str]) -> pd.DataFrame:
-    """`DashboardData.compare_table` (indice = metrica); se una metrica o un'azienda manca nella tabella delle
-    metriche (dati incompleti) la ricostruisce qui con i buchi, invece di andare in eccezione."""
-    try:
-        return d.compare_table(tickers).set_index("key")
-    except (KeyError, ValueError) as exc:
-        import logging
-
-        logging.getLogger(__name__).warning("Confronta: metriche incomplete (%s)", exc)
-    from modules.metrics import METRICS
-
-    m = d.metrics().reindex(index=tickers)
-    rows = []
-    for metric in METRICS:
-        vals = pd.to_numeric(m[metric.key], errors="coerce") if metric.key in m else pd.Series(np.nan, index=tickers)
-        best = None
-        if metric.better and vals.notna().sum() >= 2:
-            best = vals.idxmax() if metric.better == "high" else vals.idxmin()
-        rows.append({"key": metric.key, "group": metric.group, "label": metric.label, "better": metric.better,
-                     **vals.astype(float).to_dict(), "best": best})
-    return pd.DataFrame(rows).set_index("key")
+    """Metriche affiancate senza mai andare in eccezione (servizio compare.compare_metrics)."""
+    return d.compare_metrics(tickers)
 
 
 # ---------------------------------------------------------------- pagina

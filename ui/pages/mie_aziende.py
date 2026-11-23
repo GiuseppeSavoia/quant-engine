@@ -149,14 +149,12 @@ def _empty(d):
                     st.rerun()
 
 
-ENGLISH_NUMBER_CODES = {"PX-", "PX+", "FV", "FV~", "MOV", "MOV1", "52S", "INS", "MRG", "DOC", "REV"}
+from modules.alerts import ENGLISH_NUMBER_CODES, alert_message_it  # noqa: E402,F401
 
 
 def _it_message(r) -> str:
-    """Messaggio dell'avviso con i numeri in italiano: le regole di modules/alerts.py scrivono 1,234.5 e 26.8%
-    (CHG viene da changes.py, già in italiano; 8K contiene numeri di voce come 4.02 da non toccare)."""
-    msg = str(r.get("message") or "")
-    return it_number(msg) if r.get("code") in ENGLISH_NUMBER_CODES else msg
+    """Messaggio dell'avviso con i numeri in italiano (modules/alerts.alert_message_it)."""
+    return alert_message_it(r.get("code"), r.get("message"))
 
 
 def _unseen(r) -> bool:

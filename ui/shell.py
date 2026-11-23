@@ -23,7 +23,7 @@ from ui.common import (APPEARANCES, TERMINAL, _args, _on_appearance, appearance,
 from ui.components import breadcrumb_html, empty_state, notice
 from ui.components import fmt as _fmt
 
-PLACEHOLDER = "Cerca azienda o comando: Apple, AAPL, AAPL DCF…  ( / )"
+PLACEHOLDER = "Cerca azienda o comando…   ( / )"
 
 
 # ---------------------------------------------------------------- barra dei comandi
@@ -107,13 +107,13 @@ def _command_bar(current=None):
     here = getattr(current, "url_path", None)
     unseen = _unseen_alerts()
     with st.container(key="qe_shell"):
-        bar, keys, menu = st.columns([3.2, 6.8, 0.8], vertical_alignment="center", gap="small")
+        bar, keys, menu = st.columns([3.0, 7.0, 0.8], vertical_alignment="center", gap="small")
         bar.text_input("Comando", key="qe_cmd", on_change=_run_command, label_visibility="collapsed",
                        placeholder=PLACEHOLDER)
         with keys.container(horizontal=True, gap=None, wrap=False, key="qe_fkeys"):
             for key, path, label in nav.FKEYS:
-                text = f"{key} {label}" + (f" · {unseen}" if path == "" and unseen else "")
-                tip = f"{nav.SPECS[path][2]} ({key} o Alt+{key[1:]})"
+                text = label + (f" · {unseen}" if path == "" and unseen else "")
+                tip = f"{nav.SPECS[path][2]} (tasto {key} o Alt+{key[1:]})"
                 if path == here:
                     with st.container(key="qe_fkey_on", width="content"):
                         st.page_link(nav.page(path), label=text, help=f"Sei qui: {tip}")
@@ -139,11 +139,19 @@ def _command_bar(current=None):
 
 def _restart_notice():
     """Codice cambiato dopo l'avvio del server: le pagine userebbero un misto di vecchio e nuovo (Streamlit non
-    ricarica i moduli importati), quindi si chiede di riavviare."""
+    ricarica i moduli importati), quindi si chiede di riavviare. Inoltre: versione di Streamlit non collaudata."""
+    import streamlit
+
+    from ui import streamlit_contract
+
+    if not streamlit_contract.version_supported():
+        notice(f"Streamlit {streamlit.__version__} non è la versione collaudata ({streamlit_contract.TESTED_SERIES}.x): "
+               "l'app funziona, ma qualche rifinitura grafica può mancare. Reinstalla le dipendenze di "
+               "requirements.txt.", "info")
     files = code_version.changed()
     if files:
         shown = ", ".join(files[:3]) + (f" e altri {len(files) - 3}" if len(files) > 3 else "")
-        notice(f"Il codice dell'app è cambiato dopo l'avvio ({shown}): chiudi e riapri QUANT_ENGINE (o riavvia il "
+        notice(f"Il codice dell'app è cambiato dopo l'avvio ({shown}): chiudi e riapri QuantEngine (o riavvia il "
                "server) per usare la versione nuova.", "warn")
 
 
@@ -426,9 +434,8 @@ def _update_panel():
     st.session_state["ui_appearance"] = appearance()
     st.segmented_control("Aspetto", list(APPEARANCES), format_func=APPEARANCES.get, key="ui_appearance",
                          required=True, on_change=_on_appearance, width="stretch",
-                         help="Segui il sistema: scuro o chiaro come il Mac (cambia da solo con l'aspetto del Mac). "
-                              "Scuro: fondo nero, monospazio, ambra (come un terminale finanziario). Chiaro: fondo "
-                              "bianco, accento blu.")
+                         help="Segui il sistema: chiaro o scuro come il Mac (cambia da solo con l'aspetto del Mac). "
+                              "Chiaro: fondo bianco, accento blu. Scuro: fondo nero.")
     if not demo and not demo_copy:
         _auto_update_toggle()
     if demo_copy:

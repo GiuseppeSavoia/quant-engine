@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from modules import screener
+from modules.services.explore import rule_unit
 from modules.metrics import METRICS, METRIC_BY_KEY
 from ui.common import md
 from ui.components import DIGITS, NA, VERDICT_STYLE, fmt, notice, num_column
@@ -107,11 +108,8 @@ def round_for_display(df: pd.DataFrame, columns) -> pd.DataFrame:
 
 
 def _rule_unit(metric: str, op: str) -> tuple[str, float]:
-    """Unità mostrata e fattore di conversione (valore mostrato = valore x fattore)."""
-    if op in screener.RANK_OPS:
-        return "%", 100.0
-    return {"pct": ("%", 100.0), "money": ("mld $", 1e-9)}.get(METRIC_BY_KEY[metric].fmt, ("", 1.0))
-
+    """Unità mostrata e fattore di conversione (valore mostrato = valore x fattore): modules/services/explore.rule_unit."""
+    return rule_unit(metric, op)
 
 def _rules_set(ns: str, rules: list[dict]):
     """Carica `rules` nei widget delle condizioni con prefisso `ns` (es. "ex" = Esplora, "sb" = strategie)."""
@@ -163,19 +161,7 @@ def _rules_widgets(ns: str, exclude: set[str] = frozenset()) -> list[dict]:
 
 
 # ---------------------------------------------------------------- giudizi (modules/verdict.py)
-VERDICT_NOTE = ("Il giudizio è una sintesi dei criteri impostati, non una raccomandazione: nella prova sul passato "
-                "(2013-2026, dati di allora) le «Candidate» non hanno battuto l'indice. Dettagli e prove nella scheda "
-                "dell'azienda.")
-PILLARS = ["quality", "solidity", "price", "flags", "insiders"]
-PILLAR_SHORT = {"quality": "Qualità", "solidity": "Solidità", "price": "Conven.", "flags": "Allarmi",
-                "insiders": "Insider"}
-PILLAR_HELP = {
-    "quality": "Qualità del business, da 0 a 1 (1 = eccellente: redditività alta e costante).",
-    "solidity": "Solidità finanziaria, da 0 a 1 (1 = molto solida: poco debito, interessi ben coperti).",
-    "price": "Pilastro Prezzo, da 0 a 1 (1 = prezzo basso rispetto a valore stimato, settore e storia).",
-    "flags": "Segnali d'allarme, da 0 a 1 (1 = nessun allarme contabile o di bilancio).",
-    "insiders": "Chi è dentro (insider e fondi), da 0 a 1: solo contesto, non entra nel giudizio.",
-}
+from modules.services.explore import PILLAR_HELP, PILLAR_SHORT, PILLARS, VERDICT_NOTE  # noqa: E402,F401
 
 
 def verdict_text(category) -> str:
@@ -192,17 +178,7 @@ def verdict_options() -> list[str]:
     return list(verdict.ORDER)
 
 
-def pillar_grade(pillar: str, score) -> str:
-    """Voto in parole del pilastro (stesse soglie di modules/verdict.GRADES)."""
-    from modules import verdict
-
-    if score is None or (isinstance(score, float) and not np.isfinite(score)) or pd.isna(score):
-        return ""
-    for threshold, word in verdict.GRADES.get(pillar, []):
-        if float(score) >= threshold:
-            return word
-    return ""
-
+from modules.services.compare import pillar_grade  # noqa: E402,F401 - una sola definizione
 
 def _verdict_key(d) -> str:
     """Chiave dei giudizi: oggetto dei dati (cambia con ogni aggiornamento, dati a mano e codice), ultima data dei

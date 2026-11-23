@@ -170,6 +170,13 @@ DEFAULTS: dict[str, Any] = {
         "history": {"enabled": True, "keep_rule_days": 30},
         "tracking": {"min_age_days": 21, "min_independent_periods": 20},
     },
+    # tavolo dei grandi investitori (modules/investor_panel.py): solo informazione, mai nel giudizio
+    "investor_panel": {
+        "near_miss": 0.10,          # "Quasi": una sola regola mancata di al massimo il 10% della soglia
+        "near_miss_rank": 0.10,     # ...o, per "tra i migliori", di al massimo 10 punti percentili
+        "near_miss_abs": 0.01,      # ...o, se la soglia è zero, di al massimo 0,01 (1 punto per le percentuali)
+        "price_range": [0.05, 20.0],  # prezzi cercati tra 0,05 e 20 volte quello di oggi
+    },
     "risk": {
         "max_sector_weight": 0.30,
         "target_volatility": 0.0,

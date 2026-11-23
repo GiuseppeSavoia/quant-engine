@@ -24,7 +24,7 @@ from ui import nav
 from ui.common import data
 from ui.components import notice
 
-ALL_GROUPS = ["mercati", "comunicati", "banche centrali", "italia", "aziende"]
+ALL_GROUPS = news_mod.GROUPS
 
 
 # ---------------------------------------------------------------- 8-K (documenti ufficiali)
@@ -32,6 +32,7 @@ def _news_table(news: pd.DataFrame, height: int = 520):
     if news.empty:
         st.caption("Nessun 8-K nel periodo (si scaricano con \"Aggiorna dati\" e con l'aggiornamento automatico).")
         return
+    news = news.assign(when=pd.to_datetime(news["when"]))
     shown = news.assign(what=np.where(news["important"], "⚠ " + news["what"], news["what"]))
     st.dataframe(shown[["when", "ticker", "name", "what", "url"]], hide_index=True, width="stretch", height=height,
                  column_config={"when": st.column_config.DatetimeColumn("Quando", format="DD/MM HH:mm"),
@@ -51,12 +52,9 @@ def _filings_section(d):
     only_imp = c3.toggle("Solo ⚠", key="news_imp")
     kinds = c4.multiselect("Tipo di evento", list(ITEM_LABELS), format_func=lambda k: f"{k} {ITEM_LABELS[k]}",
                            placeholder="Tutti")
-    news = d.news(days, d.watchlist() if mine else None)
-    if not news.empty and only_imp:
-        news = news[news["important"]]
-    if not news.empty and kinds:
-        news = news[[bool(set(str(i or "").split(",")) & set(kinds)) for i in news["items"]]]
-    st.caption(f"{len(news)} depositi di {news['ticker'].nunique() if not news.empty else 0} aziende.")
+    page = d.filings_page(days, mine, only_imp, kinds)
+    news = pd.DataFrame(page["items"], columns=["when", "ticker", "name", "form", "what", "important", "url", "codes"])
+    st.caption(f"{len(news)} depositi di {page['companies']} aziende.")
     _news_table(news, height=640)
 
 
@@ -68,15 +66,10 @@ def _feed(news_cfg_json: str):
 
 
 def _followed(d) -> list[str]:
-    """Le mie aziende + i titoli in portafoglio."""
-    tickers = set(d.watchlist())
-    try:
-        tx = d.db.load_transactions()
-        if not tx.empty:
-            tickers |= set(tx["ticker"].dropna())
-    except Exception:  # noqa: BLE001 - senza portafoglio restano le aziende seguite
-        pass
-    return sorted(tickers)
+    """Le mie aziende: seguite, posizioni aperte, con una soglia di prezzo (come in Oggi e nella nuova interfaccia)."""
+    from modules.alerts import followed_tickers
+
+    return sorted(followed_tickers(d.db))
 
 
 def _name(d, ticker: str) -> str:
@@ -201,17 +194,8 @@ def _live_section(d):
             mark = seen
         st.session_state["nw_mark"] = (mark, newest)
 
-        view_df = table
-        if view == "Le mie aziende":
-            view_df = news_mod.latest(view_df, followed, limit=len(view_df) or 1) if followed else view_df.iloc[0:0]
-        elif view == "Un ticker" and ticker:
-            view_df = news_mod.latest(view_df, [ticker], limit=len(view_df) or 1)
-        if groups and not view_df.empty:
-            view_df = view_df[view_df["group"].isin(groups)]
-        if lang != "tutte" and not view_df.empty:
-            view_df = view_df[view_df["lang"] == lang]
-        if query.strip() and not view_df.empty:
-            view_df = view_df[view_df["title"].str.contains(query.strip(), case=False, regex=False)]
+        tickers = followed if view == "Le mie aziende" else [ticker] if view == "Un ticker" and ticker else None
+        view_df = news_mod.filter_table(table, tickers, groups, None if lang == "tutte" else lang, query)
 
         n_new = int((view_df["first_seen"] > mark).sum()) if mark is not None and not view_df.empty else 0
         st.caption(f"{_status_line(updated, status)} · {len(view_df)} notizie"
@@ -238,12 +222,6 @@ def _live_section(d):
     live()
 
 
-def _x_prefs():
-    from ui.common import prefs_path
-
-    return prefs_path("preferenze_x.json")
-
-
 def _x_section(d):
     from streamlit.components.v1 import html as component_html
 
@@ -255,20 +233,17 @@ def _x_section(d):
                "post raccolto o salvato dall'app). Limiti: non è in tempo reale (si aggiorna ricaricando la pagina); "
                "X può chiedere di essere collegati nel browser e mostrare solo una parte dei post, o nessuno. Se il "
                "riquadro resta vuoto usa il link diretto al profilo sotto il nome.")
-    accounts = news_mod.load_x_accounts(_x_prefs(), cfg.get("x_accounts") or [])
+    accounts = d.x_accounts()["accounts"]
     with st.form("nw_x_form", clear_on_submit=True, border=False):  # Invio = Aggiungi
         c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
         new = c1.text_input("Aggiungi un account", key="nw_x_new", placeholder="@nome, nome o link x.com/nome")
         added = c2.form_submit_button("Aggiungi", width="stretch")
     if added and new.strip():
-        user = news_mod.x_username(new)
-        if user is None:
-            notice("Nome utente non valido: solo lettere, cifre e underscore, al massimo 15 caratteri.", "warn")
-        elif user.lower() in {a.lower() for a in accounts}:
-            notice(f"@{user} è già nell'elenco.", "info")
-        else:
-            news_mod.save_x_accounts(_x_prefs(), accounts + [user])
+        try:
+            d.add_x_account(new)
             st.rerun()
+        except ValueError as e:
+            notice(str(e), "warn")
     if not accounts:
         st.caption("Nessun account: aggiungine uno qui sopra (l'elenco resta nelle preferenze dell'app, accanto ai dati).")
         return
@@ -278,7 +253,7 @@ def _x_section(d):
             h1, h2 = st.columns([4, 1], vertical_alignment="center")
             h1.markdown(f"**@{user}** · [apri il profilo su X](https://x.com/{user})")
             if h2.button("Togli", key=f"nw_x_del_{user}", width="stretch"):
-                news_mod.save_x_accounts(_x_prefs(), [a for a in accounts if a != user])
+                d.remove_x_account(user)
                 st.rerun()
             component_html(news_mod.x_timeline_html(user, dark=TERMINAL, height=height), height=height + 10,
                            scrolling=True)

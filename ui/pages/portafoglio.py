@@ -17,10 +17,7 @@ from ui.common import MUTED, SERIES, _layout, _line, data
 
 TAX_NOTE = "stima, non è consulenza fiscale"
 PORT_TABS = ["Posizioni", "Esposizione vera", "Sovrapposizioni ETF", "Operazioni", "Dividendi e tasse"]
-SUFFIX_CCY = {"MI": "EUR", "DE": "EUR", "F": "EUR", "PA": "EUR", "AS": "EUR", "MC": "EUR", "BR": "EUR", "LS": "EUR",
-              "VI": "EUR", "HE": "EUR", "IR": "EUR", "SW": "CHF", "L": "GBP", "CO": "DKK", "ST": "SEK", "OL": "NOK",
-              "TO": "CAD", "T": "JPY", "HK": "HKD"}
-CURRENCIES = ["EUR", "USD", "GBP", "CHF", "DKK", "SEK", "NOK", "CAD", "JPY", "HKD"]
+from modules.services.portfolio import CURRENCIES, SUFFIX_CCY, guess_currency, held_quantity  # noqa: E402,F401
 
 
 # ---------------------------------------------------------------- dati
@@ -60,18 +57,11 @@ def _trim(v, min_digits: int, max_digits: int = 4) -> str:
 
 
 def _held_quantity(tx: pd.DataFrame, ticker: str, day) -> float:
-    """Azioni di `ticker` possedute alla data `day` (acquisti meno vendite fino a quel giorno compreso)."""
-    if tx is None or tx.empty:
-        return 0.0
-    t = tx[(tx["ticker"] == ticker) & tx["kind"].isin(["BUY", "SELL"])
-           & (pd.to_datetime(tx["date"]) <= pd.Timestamp(day))]
-    sign = np.where(t["kind"] == "BUY", 1.0, -1.0)
-    return float((sign * pd.to_numeric(t["quantity"], errors="coerce").fillna(0.0)).sum())
+    return held_quantity(tx, ticker, day)
 
 
 def _guess_currency(symbol: str) -> str:
-    s = (symbol or "").strip().upper()
-    return SUFFIX_CCY.get(s.rsplit(".", 1)[1], "EUR") if "." in s else "USD"
+    return guess_currency(symbol)
 
 
 # ---------------------------------------------------------------- nuova operazione
@@ -114,38 +104,12 @@ def _new_transaction():
                               disabled=kind == "DIV")
     verb = {"BUY": "Aggiungi acquisto", "SELL": "Aggiungi vendita", "DIV": "Aggiungi dividendo"}[kind]
     if st.button(verb, type="primary"):
-        missing = [n for n, ok in (("simbolo", bool(ticker)), ("quantità", bool(qty)), ("prezzo", bool(price)))
-                   if not ok]
-        if missing:
-            st.error("Mancano: " + ", ".join(missing) + ".")
+        try:  # stessi controlli dell'interfaccia web (servizio portfolio.add_transaction)
+            tx_id = d.add_transaction(ticker, kind, day, qty or 0.0, price or 0.0, currency, fx or None, fees or 0.0,
+                                      note or None, reason if kind != "DIV" else None)
+        except ValueError as exc:
+            st.error(str(exc))
             return
-        if " " in ticker:
-            st.error("Il simbolo non può contenere spazi.")
-            return
-        if kind == "SELL":  # una vendita oltre le azioni possedute verrebbe tagliata (o ignorata) senza dirlo
-            held = _held_quantity(d.db.load_transactions(), ticker, pd.Timestamp(day))
-            if qty > held + 1e-9:
-                st.error(f"Alla data scelta possiedi {_trim(held, 0)} {ticker}: non puoi venderne {_trim(qty, 0)}."
-                         if held > 0 else f"Alla data scelta non possiedi {ticker}: inserisci prima l'acquisto.")
-                return
-            # una vendita nel passato può lasciare scoperte le vendite successive
-            tx_all = d.db.load_transactions()
-            row = {"id": int(tx_all["id"].max()) + 1 if not tx_all.empty else 1, "ticker": ticker, "kind": kind,
-                   "date": pd.Timestamp(day), "quantity": qty}
-            bad = [b for b in pf.oversold(pd.concat([tx_all, pd.DataFrame([row])], ignore_index=True))
-                   if b not in pf.oversold(tx_all)]
-            if bad:
-                b = bad[0]
-                st.error(f"Con questa vendita la vendita del {C.fmt(b['date'], 'date')} di {_trim(b['sold'], 0)} "
-                         f"{b['ticker']} supererebbe le azioni possedute ({_trim(b['held'], 0)}).")
-                return
-        tx_id = d.db.add_transaction({"ticker": ticker, "kind": kind, "date": pd.Timestamp(day), "quantity": qty,
-                                      "price": price, "currency": currency, "fx": fx or None, "fees": fees or 0.0,
-                                      "note": note or None})
-        if (reason or "").strip() and kind in ("BUY", "SELL"):
-            d.db.add_decision({"ticker": ticker, "date": pd.Timestamp(day), "action": kind, "price": price,
-                               "reason": reason.strip(), "tx_id": tx_id,
-                               "review_date": pd.Timestamp(day) + pd.DateOffset(months=6)})
         st.session_state["port_toast"] = (f"{pf.KINDS[kind]} di {_trim(qty, 0)} "
                                           f"{ticker} aggiunt" + ("a" if kind == "SELL" else "o"))
         st.session_state["port_new_id"] = tx_id

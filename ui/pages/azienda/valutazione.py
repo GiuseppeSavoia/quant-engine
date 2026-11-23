@@ -20,6 +20,7 @@ import streamlit as st
 from modules import valuation_model as vm
 from modules.dashboard_data import DashboardData, HISTORY_MULTIPLES
 from modules.metrics import METRIC_BY_KEY
+from modules.services.valuation import EDIT_LEVERS, explain_check, outside_range_note  # noqa: F401
 from ui.common import MUTED, SERIES, _layout, _line
 from ui.components import (NA, dense_table, empty_state, fmt, fmt_html, fmt_metric, notice, num_column,
                            result_row_html, table_height)
@@ -40,8 +41,6 @@ VALUATION_CSS = """<style>
 
 SCENARIOS = ["Pessimista", "Base", "Ottimista"]
 
-EDIT_LEVERS = ["growth", "target_margin", "margin_years", "sales_to_capital", "wacc", "terminal_wacc",
-               "terminal_growth", "terminal_roic", "tax_rate", "failure_prob"]
 
 
 def _valuation_tab(d: DashboardData, ticker: str):
@@ -180,27 +179,6 @@ def valuation_result_items(summary: dict, price: float, probs: dict, sim: dict |
     items.append(("Prezzo", fmt_html(px, "price", currency=currency)))
     items.append(("Crescita implicita", fmt_html(implied, "pct") if implied is not None else fmt_html(None)))
     return items
-
-
-def outside_range_note(summary: dict, sim: dict | None) -> str:
-    """Frase in più quando il valore pesato cade fuori dall'intervallo 10°-90° della simulazione (collaudo 2026-11-16:
-    368 $ con intervallo 241-352 $ sembrava un errore). Vuota se dentro o se manca qualcosa."""
-    ev = _finite(summary.get("expected"))
-    lo, hi = (_finite((sim or {}).get("p10")), _finite((sim or {}).get("p90")))
-    if ev is None or lo is None or hi is None or lo <= ev <= hi:
-        return ""
-    return ("Il valore è " + ("sopra" if ev > hi else "sotto") + " l'intervallo: la simulazione muove solo le quattro "
-            "leve principali, insieme e con il caso base più probabile, mentre la media pesata dà tutto il peso "
-            "scelto a uno scenario estremo. ")
-
-
-def explain_check(msg: str) -> str:
-    """Avvisi del modello resi comprensibili: oltre il 100% del valore dopo il decimo anno vuol dire che i flussi dei
-    primi dieci anni, scontati, sono negativi (si investe più di quanto si incassa)."""
-    m = re.search(r"Il (\d+)% del valore viene da dopo il decimo anno", msg)
-    if m and int(m.group(1)) > 100:
-        return msg + " Oltre il 100%: nei primi dieci anni l'azienda investe più di quanto incassa (flussi negativi)."
-    return msg
 
 
 PLAUS_RATIO_HINT = "Ricavi per unità di capitale investito"

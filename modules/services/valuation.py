@@ -6,7 +6,42 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from modules.formats import fmt, it_text
 from modules.services.base import Service
+
+# leve modificabili nella valutazione a leve, nell'ordine della tabella (scheda Streamlit e interfaccia web)
+EDIT_LEVERS = ["growth", "target_margin", "margin_years", "sales_to_capital", "wacc", "terminal_wacc",
+               "terminal_growth", "terminal_roic", "tax_rate", "failure_prob"]
+
+
+def explain_check(msg: str) -> str:
+    """Avvisi del modello resi comprensibili: oltre il 100% del valore dopo il decimo anno vuol dire che i flussi dei
+    primi dieci anni, scontati, sono negativi (si investe più di quanto si incassa)."""
+    import re
+
+    m = re.search(r"Il (\d+)% del valore viene da dopo il decimo anno", msg)
+    if m and int(m.group(1)) > 100:
+        return msg + " Oltre il 100%: nei primi dieci anni l'azienda investe più di quanto incassa (flussi negativi)."
+    return msg
+
+
+def outside_range_note(summary: dict, sim: dict | None) -> str:
+    """Frase in più quando il valore pesato cade fuori dall'intervallo 10°-90° della simulazione (collaudo 2026-11-16:
+    368 $ con intervallo 241-352 $ sembrava un errore). Vuota se dentro o se manca qualcosa."""
+    def finite(v):
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            return None
+        return x if np.isfinite(x) else None
+
+    ev = finite(summary.get("expected"))
+    lo, hi = finite((sim or {}).get("p10")), finite((sim or {}).get("p90"))
+    if ev is None or lo is None or hi is None or lo <= ev <= hi:
+        return ""
+    return ("Il valore è " + ("sopra" if ev > hi else "sotto") + " l'intervallo: la simulazione muove solo le quattro "
+            "leve principali, insieme e con il caso base più probabile, mentre la media pesata dà tutto il peso "
+            "scelto a uno scenario estremo. ")
 
 
 class ValuationService(Service):
@@ -381,3 +416,109 @@ class ValuationService(Service):
                          "growth": v.growth, "implied_growth": v.implied_growth, "wacc": v.wacc,
                          "note": v.notes[-1] if v.fair_value is None and v.notes else None})
         return pd.DataFrame(rows).set_index("date")
+
+    # ------------------------------------------------------------------ valutazione a leve: il risultato
+    def _scenarios_from(self, setup: dict, levers: dict | None) -> dict:
+        """Scenari della partenza con le leve cambiate dal client; ValueError per scenari o leve sconosciuti."""
+        from dataclasses import fields
+
+        from modules import valuation_model as vm
+
+        allowed = {f.name for f in fields(vm.Levers)}
+        scenarios = dict(setup["scenarios"])
+        for name, changes in (levers or {}).items():
+            if name not in scenarios:
+                raise ValueError(f"Scenario sconosciuto: {name} (ammessi: {', '.join(scenarios)})")
+            bad = set(changes) - allowed
+            if bad:
+                raise ValueError(f"Leve sconosciute: {', '.join(sorted(bad))}")
+            scenarios[name] = vm.Levers(**{**scenarios[name].to_dict(),
+                                           **{k: int(v) if k == "margin_years" else float(v) for k, v in changes.items()}})
+        return scenarios
+
+    @staticmethod
+    def _probabilities(names: list[str], given: dict) -> tuple[dict, list[str]]:
+        probs = {n: float(given.get(n, 0.0)) for n in names}
+        total = sum(max(p, 0.0) for p in probs.values())
+        if total <= 0:
+            raise ValueError("Le probabilità degli scenari devono sommare più di zero.")
+        if abs(total - 1) > 0.001:
+            return ({n: max(p, 0.0) / total for n, p in probs.items()},
+                    [f"Le probabilità sommavano {fmt(total, 'pct', digits=0)}: riportate al 100% in proporzione."])
+        return probs, []
+
+    def lever_valuation(self, ticker: str, levers: dict | None = None, probabilities: dict | None = None) -> dict | None:
+        """Risultato della valutazione a leve con gli stessi calcoli della funzione DCF della scheda: valore per
+        azione di ogni scenario (`vm.value`), valore atteso pesato (`vm.scenario_values`), crescita implicita nel
+        prezzo (`vm.implied_growth`), simulazione con seme fisso (`vm.simulate`: percentili, istogramma, probabilità
+        sopra il prezzo, leve che spostano di più), controlli di coerenza spiegati, confronto col settore ("è
+        plausibile?"), tabella anno per anno del caso base, etichette delle leve. Senza argomenti valgono le ipotesi di
+        partenza (`valuation_setup`).
+
+        `levers`: {scenario: {leva: valore}} (anche parziale). `probabilities`: {scenario: peso}, riportate al 100%
+        in proporzione (detto in `notes`). ValueError per scenari o leve sconosciuti. None se non impostabile."""
+        from dataclasses import asdict
+
+        from modules import valuation_model as vm
+
+        setup = self.ctx.valuation_setup(ticker)
+        if setup is None:
+            return None
+        base = setup["base"]
+        scenarios = self._scenarios_from(setup, levers)
+        probs, notes = self._probabilities(list(scenarios), probabilities or setup["probabilities"])
+        results = {}
+        for n, lv in scenarios.items():
+            r = vm.value(base, lv, with_table=(n == "Base"))
+            results[n] = {"per_share": float(r.per_share), "equity_value": float(r.equity_value),
+                          "operating_value": float(r.operating_value), "terminal_share": float(r.tv_share),
+                          "checks": [{"level": lvl, "message": explain_check(it_text(msg))} for lvl, msg in r.checks]}
+            if n == "Base":
+                year_table = r.table
+        summary = vm.scenario_values(base, scenarios, probs)
+        sim = (vm.simulate(base, scenarios["Pessimista"], scenarios["Base"], scenarios["Ottimista"])
+               if {"Pessimista", "Base", "Ottimista"} <= set(scenarios) else None)
+        simulation = None
+        if sim is not None:
+            values = np.asarray(sim["values"], float)
+            values = values[np.isfinite(values)]
+            counts, edges = np.histogram(values, bins=40) if len(values) else (np.array([]), np.array([]))
+            simulation = {**{k: sim[k] for k in ("p10", "p50", "p90", "prob_above_price")},
+                          "swing": [{"lever": k, "label": vm.LEVER_LABELS.get(k, k), "low": lo, "high": hi}
+                                    for k, (lo, hi) in sim["swing"].items()],
+                          "histogram": {"counts": counts.tolist(), "edges": edges.tolist()}, "n": int(len(values))}
+            note = outside_range_note(summary, sim)
+            if note:
+                notes.append(note.strip())
+        implied = vm.implied_growth(base, scenarios["Base"]) if "Base" in scenarios else None
+        plaus = self.ctx.plausibility(ticker, scenarios["Base"]) if "Base" in scenarios else pd.DataFrame()
+        if not plaus.empty:
+            plaus = plaus.assign(verdict=plaus["verdict"].map(lambda t: it_text(str(t))),
+                                 kind=plaus["lever"].map(lambda t: "num" if str(t).startswith("Ricavi per unità")
+                                                         else "pct"))
+        return {"ticker": ticker, "currency": self.ctx.currency(ticker), "price": float(base.price),
+                "base": asdict(base), "levers": {n: lv.to_dict() for n, lv in scenarios.items()},
+                "lever_meta": [{"key": k, "label": vm.LEVER_LABELS[k], "pct": k in vm.PCT_LEVERS}
+                               for k in EDIT_LEVERS],
+                "probabilities": probs, "scenarios": results, "expected": float(summary["expected"]),
+                "implied_growth": implied, "simulation": simulation, "plausibility": plaus,
+                "year_table": year_table if "Base" in scenarios else pd.DataFrame(),
+                "saved": bool(setup.get("saved")),
+                "setup_notes": [it_text(str(n)) for n in list(setup.get("notes") or []) + list(setup.get("adjustments") or [])],
+                "cost_of_capital": setup.get("cost_of_capital"), "notes": notes}
+
+    def save_lever_valuation(self, ticker: str, levers: dict | None = None, probabilities: dict | None = None,
+                             story: str = "", note: str = "") -> dict:
+        """Salva nel diario la valutazione con queste leve (e aggiorna il fair value dell'utente), come il pulsante
+        della scheda. ValueError se non impostabile o con leve non valide."""
+        from modules import valuation_model as vm
+
+        setup = self.ctx.valuation_setup(ticker)
+        if setup is None:
+            raise ValueError("Valutazione non impostabile: mancano ricavi, azioni o prezzi.")
+        scenarios = self._scenarios_from(setup, levers)
+        probs, _ = self._probabilities(list(scenarios), probabilities or setup["probabilities"])
+        sim = (vm.simulate(setup["base"], scenarios["Pessimista"], scenarios["Base"], scenarios["Ottimista"])
+               if {"Pessimista", "Base", "Ottimista"} <= set(scenarios) else None)
+        return self.ctx.save_valuation(ticker, setup, scenarios, probs, story=story, note=note, simulation=sim)
+

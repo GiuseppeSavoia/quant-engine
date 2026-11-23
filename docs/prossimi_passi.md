@@ -77,3 +77,24 @@ specifica grafica in `docs/revisione_grafica.md`. Ultimo commit: `c5930d9`, albe
 - Una sola sessione di Claude per cartella: il 2026-11-16 un'altra sessione (Sonnet) ha fatto commit di lavoro a metà.
 - Mai scrivere nel database reale per prove; demo su copie (`config.demo_db_path`). Dopo modifiche al codice
   riavviare il server Streamlit.
+
+## Prodotto da vendere (2026-11-23)
+- Grafica in stile Apple fatta (CLAUDE.md, "Aspetto da PRODOTTO").
+- Piano per un'interfaccia separata da Streamlit: `docs/piano_frontend.md`. Prima decidere: app desktop con licenza o
+  servizio online; fornitore dei dati con licenza (Yahoo non va bene per un prodotto venduto); parere legale sul
+  giudizio "Candidata all'acquisto"; firma e notarizzazione dell'app Mac.
+- Interfaccia nuova completata il 2026-11-23 (commit d116e20): tutte le pagine tranne quelle che vanno in rete (elenco
+  in `docs/piano_frontend.md` §8). Prossimi passi del piano: fase 4 (login, dati per utente, Postgres), decisione 2
+  (fornitore di dati), decisione 3 (parere legale).
+
+## Tavolo dei grandi investitori (2026-11-23, `docs/piano_tavolo_investitori.md`)
+- Fatto: `modules/investor_panel.py` (esiti per investitore + sintesi, prezzo che fa passare le regole di prezzo),
+  servizio, funzione TAV della scheda (Streamlit e web, "Altro" → "Tavolo dei grandi investitori"), API
+  `/companies/{t}/investors`, metrica di Esplora `investors_liking` (vietata nelle strategie). Verificato su MSFT, CVS,
+  JPM sul database reale.
+- Da fare: (facoltativo) storico del tavolo a fine trimestre ("da quando piace a Buffett"), solo se costa poco
+  (misurare prima: ~0,7 s per azienda e data); poi aggiornare il repository pubblico `GiuseppeSavoia/quant-engine`
+  (git archive HEAD, senza CLAUDE.md e .claude/, `sec.user_agent: ""`, controllo email/percorsi/chiavi) con la sezione
+  "Legendary investors panel" e uno screenshot dalla demo.
+- I risultati storici delle strategie degli investitori compaiono nel tavolo solo se il backtest è già salvato
+  (pagina Strategie, "Calcola le mancanti"): sul database reale al 2026-11-23 ce ne sono solo 2 su 20.

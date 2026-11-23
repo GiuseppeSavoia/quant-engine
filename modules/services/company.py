@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from modules.market_data import adjust_shares_for_splits
-from modules.metrics import METRICS, compute_metrics, fundamental_metrics, percentile_ranks
+from modules.metrics import METRIC_BY_KEY, METRICS, compute_metrics, fundamental_metrics, percentile_ranks
 from modules.services.base import Service
 
 # metriche di bilancio nell'ordine in cui le mostra la scheda azienda
@@ -388,3 +388,101 @@ class CompanyService(Service):
             df = df.loc[common.index[0]:]
             df = df / df.iloc[0] * 100
         return df
+
+    # ------------------------------------------------------------------ testata della scheda
+    HEADER_KEYS = {"bank": ["pe", "ptbv", "rotce"], "insurer": ["pe", "ptbv", "rotce"],
+                   "reit": ["p_ffo", "ffo_yield", "pb"], "general": ["pe", "ev_ebit", "fcf_yield"]}
+    HEADER_LABELS = {"pe": "P/E", "ev_ebit": "EV/EBIT", "fcf_yield": "Rend. FCF", "ptbv": "P/TBV", "rotce": "ROTCE",
+                     "p_ffo": "P/FFO", "ffo_yield": "Rend. FFO", "pb": "P/B"}
+
+    def company_header(self, ticker: str, profile: str = "general") -> dict:
+        """Testata della scheda (stessi numeri di ui/pages/azienda/scheda._head), valori grezzi con il loro tipo:
+        identità, prezzo e variazione, data dei bilanci, capitalizzazione e tre multipli scelti per il tipo di
+        azienda (`profile` del giudizio: general, bank, insurer, reit...), rendimento a un anno, minimo e massimo a 52
+        settimane, fair value dell'utente e sue soglie di prezzo."""
+        ctx = self.ctx
+        info = ctx.info(ticker)
+        cur = ctx.currency(ticker)
+        group = ctx.universe_of(ticker)
+        m = ctx.metrics()
+        value = lambda k: (float(m.at[ticker, k]) if ticker in m.index and k in m.columns  # noqa: E731
+                           and pd.notna(m.at[ticker, k]) else None)
+        px = ctx.prices(ticker)
+        last = change = price_date = lo = hi = None
+        if not px.empty:
+            close = px["close"]
+            last = float(close.iloc[-1])
+            change = last / float(close.iloc[-2]) - 1 if len(close) > 1 else None
+            price_date = close.index[-1]
+            year = px.tail(252)
+            lo = float(year["low"].min() if "low" in year and year["low"].notna().any() else year["close"].min())
+            hi = float(year["high"].max() if "high" in year and year["high"].notna().any() else year["close"].max())
+        stmt = m.at[ticker, "statement_date"] if ticker in m.index and "statement_date" in m.columns else None
+        fv = ctx.note(ticker).get("fair_value")
+        fv = float(fv) if fv is not None and pd.notna(fv) else None
+        keys = self.HEADER_KEYS.get(profile, self.HEADER_KEYS["general"])
+        kind = lambda k: METRIC_BY_KEY[k].fmt if k in METRIC_BY_KEY else "num"  # noqa: E731
+        return {
+            "ticker": ticker, "name": info.get("name") or "", "sector": info.get("sector"),
+            "sub_industry": info.get("sub_industry"), "universe": group, "currency": cur, "profile": profile,
+            "price": last, "change": change, "price_date": price_date,
+            "statement_date": stmt if stmt is not None and pd.notna(stmt) else None,
+            "statement_kind": "esercizio" if group not in ("S&P 500", "Aggiunta da te") else "bilanci",
+            "market_cap": {"value": value("market_cap"), "kind": "money"},
+            "key_metrics": [{"key": k, "label": self.HEADER_LABELS[k], "value": value(k), "kind": kind(k)} for k in keys],
+            "return_1y": {"value": value("ret_1y"), "kind": "pct"},
+            "range_52w": {"low": lo, "high": hi},
+            "fair_value": fv, "fair_value_margin": fv / last - 1 if fv is not None and last else None,
+            "price_target": ctx.price_target(ticker), "followed": ticker in set(ctx.watchlist()),
+        }
+
+    # ------------------------------------------------------------------ concorrenti e documenti (funzioni RV e CF)
+    def company_peers(self, ticker: str) -> dict:
+        """Concorrenti pronti da mostrare: le aziende più grandi del gruppo (sotto-settore o settore) con i numeri
+        principali, `ticker` compreso, e l'azienda contro le mediane del gruppo. {"empty": True} senza settore."""
+        peers, group, cols = self.ctx.peers(ticker)
+        if peers.empty:
+            return {"ticker": ticker, "empty": True, "why": "Per questa azienda manca il settore."}
+        median = peers[cols].median()
+        own = peers.set_index("ticker")
+        columns = [{"key": c, "label": METRIC_BY_KEY[c].label if c in METRIC_BY_KEY else c,
+                    "fmt": METRIC_BY_KEY[c].fmt if c in METRIC_BY_KEY else "num",
+                    "better": METRIC_BY_KEY[c].better if c in METRIC_BY_KEY else None} for c in cols]
+        rows = [{"ticker": r["ticker"], "name": r.get("name"), "me": r["ticker"] == ticker,
+                 "values": {c: r.get(c) for c in cols}} for _, r in peers.iterrows()]
+        versus = [{"key": c, "own": own.at[ticker, c] if ticker in own.index else None, "median": median[c]}
+                  for c in cols]
+        return {"ticker": ticker, "empty": False, "group": group, "currency": self.ctx.currency(ticker),
+                "columns": columns, "rows": rows, "versus": versus}
+
+    def company_documents(self, ticker: str, news_limit: int = 10, filings_limit: int = 150) -> dict:
+        """Ultime notizie che citano l'azienda (dalla copia salvata dei feed: niente rete) e documenti depositati alla
+        SEC (10-K, 10-Q dall'archivio, 8-K con le voci e il segno ⚠ per quelle da guardare subito)."""
+        from modules import news as news_mod
+
+        ctx = self.ctx
+        f = ctx.company_filings(ticker)
+        sec_filer = ticker not in set(ctx.foreign["ticker"]) | set(ctx.custom_companies["ticker"])
+        n = self.cfg.get("news") or {}
+        news = pd.DataFrame(columns=news_mod.COLUMNS)
+        if n.get("enabled", True):
+            cache = Path(n.get("cache_dir", "data/cache/news"))
+            if not cache.is_absolute():
+                from modules.config import PROJECT_ROOT
+
+                cache = PROJECT_ROOT / cache
+            try:
+                store = news_mod.NewsStore(cache / "notizie.json", keep_days=float(n.get("keep_days", 3)))
+                news = news_mod.latest(store.frame(), [ticker], news_limit)
+            except Exception:  # noqa: BLE001 - le notizie sono un di più: i documenti restano
+                news = pd.DataFrame(columns=news_mod.COLUMNS)
+        return {
+            "ticker": ticker, "sec_filer": sec_filer, "news_enabled": bool(n.get("enabled", True)),
+            "news": [{"published": r["published"], "source": r["source"], "title": r["title"], "link": r["link"]}
+                     for _, r in news.iterrows()],
+            "filings": [{"when": r["when"], "form": r["form"], "what": r["what"], "important": bool(r["important"]),
+                         "url": r["url"]} for _, r in f.head(filings_limit).iterrows()] if not f.empty else [],
+            "filings_total": int(len(f)),
+            "why_no_filings": ("L'archivio dei documenti SEC si riempie con l'aggiornamento dei dati." if sec_filer
+                               else "Le aziende europee e quelle aggiunte da te non depositano alla SEC."),
+        }

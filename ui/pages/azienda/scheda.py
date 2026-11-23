@@ -17,7 +17,7 @@ import streamlit as st
 from modules import commands
 from modules.dashboard_data import DashboardData
 from modules.metrics import GROUPS
-from ui.common import SERIES, TERMINAL, _layout, _open_selected, data
+from ui.common import SERIES, TERMINAL, TOKENS, _layout, _open_selected, data
 from ui.components import (NA, dense_table, empty_state, fmt, fmt_html, fmt_metric, head_html, panel, range_html,
                            ticker_link)
 from ui.pages.azienda import verdetto as V
@@ -80,12 +80,19 @@ def page_company():
         "NOTE": lambda: _research_tab(d, ticker, note),
         "AUTO": lambda: _strategy_tab(d, ticker),
         "EE": lambda: _estimates_tab(d, ticker),
+        "TAV": lambda: _investor_panel(d, ticker),
     }
     if px.empty and fn in ("GP", "DCF", "RV", "DVD", "AUTO"):
         empty_state("Nessun prezzo per questo titolo", "Senza prezzi questa funzione non si può calcolare: prova "
                     "Bilanci o Notizie e documenti, oppure aggiorna i dati.")
         return
     sections[fn]()
+
+
+def _investor_panel(d: DashboardData, ticker: str):
+    from ui.pages.azienda.tavolo import render_panel
+
+    render_panel(d, ticker)
 
 
 def _current_ticker(d: DashboardData) -> str:
@@ -127,35 +134,24 @@ def _actions(d: DashboardData, ticker: str, target: dict, cur: str):
                          format_func=lambda t: f"{t} — {d.info(t).get('name') or ''}")
 
 
-def _pipeline_stage(d: DashboardData, ticker: str) -> str | None:
-    pipe = d.db.load_pipeline()
-    return pipe.set_index("ticker")["stage"].get(ticker) if not pipe.empty else None
-
-
 def _pipeline_label(d: DashboardData, ticker: str) -> str:
-    from modules.workflow import STAGE_LABELS
-
-    stage = _pipeline_stage(d, ticker)
-    return f"Pipeline: {STAGE_LABELS.get(stage, stage)}" if stage else "Pipeline"
+    label = d.pipeline_stage(ticker)["label"]
+    return f"Pipeline: {label}" if label else "Pipeline"
 
 
 def _pipeline_panel(d: DashboardData, ticker: str):
-    from modules import workflow as wf
-
-    cur = _pipeline_stage(d, ticker)
-    keys = [k for k, _ in wf.STAGES]
-    stage = st.radio("Fase", keys, index=keys.index(cur) if cur in keys else 0, key="co_pipe_stage",
-                     format_func=wf.STAGE_LABELS.get)
+    info = d.pipeline_stage(ticker)
+    stages = {x["key"]: x for x in info["stages"]}
+    keys = list(stages)
+    stage = st.radio("Fase", keys, index=keys.index(info["stage"]) if info["stage"] in keys else 0,
+                     key="co_pipe_stage", format_func=lambda k: stages[k]["label"])
     note = st.text_input("Nota", key="co_pipe_note", placeholder="es. idea da 13F, scartata per il debito")
     if st.button("Salva la fase", key="co_pipe_save", type="primary", width="stretch"):
-        d.db.set_pipeline_stage(ticker, stage, note.strip() or None)
-        st.session_state["qe_flash"] = f"{ticker}: {wf.STAGE_LABELS[stage]}."
+        d.set_pipeline_stage(ticker, stage, note)
+        st.session_state["qe_flash"] = f"{ticker}: {stages[stage]['label']}."
         st.rerun()
-    if cur:
-        fv = d.note(ticker).get("fair_value")
-        missing = wf.missing_for(stage, wf.completeness(d.research(ticker), fv, not d.valuation_diary(ticker).empty))
-        if missing:
-            st.caption("Per questa fase manca: " + ", ".join(missing) + ".")
+    if info["stage"] and stages[stage]["missing"]:
+        st.caption("Per questa fase manca: " + ", ".join(stages[stage]["missing"]) + ".")
 
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -168,10 +164,8 @@ def _export_panel(d: DashboardData, ticker: str):
                "bilanci con la fonte di ogni esercizio. PDF: giudizio, tesi, numeri, concorrenti, valutazione.")
     key_x, key_p = f"qe_xlsx_{ticker}", f"qe_pdf_{ticker}"
     if st.button("Prepara il modello Excel", key="co_xlsx_make", width="stretch"):
-        from modules.excel_model import company_model
-
         with st.spinner("Preparo il modello…"):
-            st.session_state[key_x] = company_model(d, ticker) or b""
+            st.session_state[key_x] = d.export_excel(ticker) or b""
     if key_x in st.session_state:
         if st.session_state[key_x]:
             st.download_button("Scarica il modello Excel", data=st.session_state[key_x], mime=XLSX_MIME,
@@ -179,10 +173,8 @@ def _export_panel(d: DashboardData, ticker: str):
         else:
             st.caption("Valutazione non impostabile: mancano ricavi, azioni o prezzi.")
     if st.button("Prepara la sintesi in PDF", key="co_pdf_make", width="stretch"):
-        from modules.research_pdf import company_pdf
-
         with st.spinner("Preparo il PDF…"):
-            st.session_state[key_p] = company_pdf(d, ticker)
+            st.session_state[key_p] = d.export_pdf(ticker)
     if st.session_state.get(key_p):
         st.download_button("Scarica il PDF", data=st.session_state[key_p], mime="application/pdf",
                            file_name=f"{ticker}_sintesi_{day}.pdf", width="stretch", key="co_pdf_dl")
@@ -276,7 +268,7 @@ def _peers_section(d: DashboardData, ticker: str):
 
     def mark(row):
         on = row["ticker"] == ticker
-        return [f"background-color: {'#3a2a00' if TERMINAL else '#e6f1fb'}" if on else "" for _ in row]
+        return [f"background-color: {TOKENS['surface-hi']}" if on else "" for _ in row]
 
     shown = peers.assign(market_cap=peers["market_cap"] / 1e9)
     slot = st.container()

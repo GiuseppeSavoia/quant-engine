@@ -138,8 +138,10 @@ def summary(est: pd.DataFrame, price: float, market_cap: float, enterprise_value
     est = latest(est)
     f = fiscal_fraction(last_annual_end, today)
     eps, rev = next_twelve_months(est, "eps", f), next_twelve_months(est, "revenue", f)
-    g = lambda m, p: est[(est["metric"] == m) & (est["period"] == p)]["growth"]  # noqa: E731
-    pt = est[est["metric"] == "price_target"]["avg"]
+    # crescite e prezzo obiettivo come numeri: senza "anno prima" (es. un CSV con una sola data) la colonna ha None
+    g = lambda m, p: pd.to_numeric(est[(est["metric"] == m) & (est["period"] == p)]["growth"],  # noqa: E731
+                                   errors="coerce")
+    pt = pd.to_numeric(est[est["metric"] == "price_target"]["avg"], errors="coerce")
     ok = lambda x: x is not None and np.isfinite(x)  # noqa: E731
     out = {"eps_ntm": eps, "revenue_ntm": rev,
            "pe_ntm": price / eps if ok(price) and ok(eps) and eps > 0 else np.nan,

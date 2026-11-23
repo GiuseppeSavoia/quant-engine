@@ -167,3 +167,212 @@ class StrategyService(Service):
         out["score"] = dec["confidence"].reindex(out.index) if "confidence" in dec else np.nan
         out.index.name = "ticker"
         return out.reset_index()
+
+    # ------------------------------------------------------------------ pagina Strategie (webapp e interfaccia nuova)
+    def strategy_label(self, name: str) -> dict:
+        """Nome, tipo ("mia", gruppo del catalogo o "Di base") e se si può modificare."""
+        mine = self.ctx.user_strategies()
+        if name in mine:
+            return {"name": name, "group": "Mie", "mine": True}
+        entry = self.ctx.strategy_catalog().get(name)
+        if entry is None:
+            raise KeyError(name)
+        return {"name": name, "group": entry.get("group") or "Di base", "mine": False}
+
+    def strategies_list(self) -> list[dict]:
+        """Tutte le strategie in ordine: catalogo standard, grandi investitori, le mie."""
+        return [self.ctx.strategy_label(n) for n in [*self.ctx.strategy_catalog(), *self.ctx.user_strategies()]]
+
+    def strategy_run_key(self, name: str) -> str:
+        """Chiave di un backtest (configurazione + data dei dati): due richieste uguali sono lo stesso lavoro."""
+        cfg, _ = self.ctx.strategy_config(name)
+        return f"backtest:{run_info.config_hash(cfg)}:{pd.Timestamp(self.data.last_date).date()}"
+
+    def run_strategy_backtest(self, name: str) -> None:
+        """Backtest della strategia e, se manca, dell'indice a pesi uguali (serve al confronto)."""
+        self.ctx.strategy_result(name, run=True)
+        if name != strategies.BASELINE:
+            self.ctx.strategy_result(strategies.BASELINE, run=True)
+
+    @staticmethod
+    def _sample(frame: pd.DataFrame, max_points: int) -> dict:
+        frame = frame.dropna(how="all")
+        if len(frame) > max_points:
+            step = int(np.ceil(len(frame) / max_points))
+            keep = list(range(0, len(frame), step))
+            if keep[-1] != len(frame) - 1:
+                keep.append(len(frame) - 1)
+            frame = frame.iloc[keep]
+        return {"dates": [d.strftime("%Y-%m-%d") for d in frame.index],
+                "series": [{"key": c, "values": [None if not np.isfinite(v) else float(v) for v in frame[c]]}
+                           for c in frame.columns]}
+
+    def _report(self, name: str, result: dict, baseline: dict | None, max_points: int) -> dict:
+        from modules import significance
+        from modules.backtester import yearly_returns
+        from modules.formats import it_text
+
+        bench = str(self.cfg["universe"].get("benchmark") or "Benchmark")
+        table = self.ctx.period_table(result, baseline)
+        summary = None
+        if not table.empty:
+            second = table[table["period"].str.startswith("2a")].set_index("what")
+            if "Strategia" in second.index and strategies.BASELINE in second.index:
+                s, e = second.loc["Strategia"], second.loc[strategies.BASELINE]
+                summary = {"better": bool(s["cagr"] > e["cagr"] and s["sharpe_ratio"] >= e["sharpe_ratio"]),
+                           "cagr": float(s["cagr"]), "baseline_cagr": float(e["cagr"]),
+                           "sharpe": float(s["sharpe_ratio"]), "baseline_sharpe": float(e["sharpe_ratio"]),
+                           "bench_cagr": float(second.loc[bench, "cagr"]) if bench in second.index else None}
+        eq, bench_eq = result["equity"], result["benchmark"]
+        base_eq = baseline["equity"] if baseline else None
+        curves = pd.DataFrame({"strategy": eq})
+        for key, s in (("baseline", base_eq), ("benchmark", bench_eq)):
+            if s is not None and not s.empty and not eq.empty:
+                curves[key] = s.reindex(curves.index).ffill()
+        if not eq.empty:
+            curves = curves.loc[eq.index[0]:]
+            curves = curves / curves.bfill().iloc[0]
+        yearly = yearly_returns(eq, base_eq.loc[eq.index[0]:] if base_eq is not None and not eq.empty else None)
+        yb = yearly_returns(bench_eq)
+        years = [{"year": int(y), "strategy": float(r["strategia"]),
+                  "baseline": float(r["benchmark"]) if "benchmark" in yearly and pd.notna(r.get("benchmark")) else None,
+                  "benchmark": float(yb.loc[y, "strategia"]) if y in yb.index else None}
+                 for y, r in yearly.iterrows()]
+        sig = None
+        try:
+            a = significance.assess(eq, self.db.load_experiments())
+            sig = {"text": it_text(significance.verdict_text(a)), "dsr": a.get("dsr")}
+        except Exception:  # noqa: BLE001 - nota informativa: mai bloccare la pagina
+            pass
+        m = result["metrics"]
+        mid = eq.index[0] + (eq.index[-1] - eq.index[0]) / 2 if not eq.empty else None
+        return {
+            "stale": bool(result.get("stale")), "data_as_of": result.get("data_as_of"), "benchmark": bench,
+            "summary": summary, "periods": table.to_dict("records"),
+            "curves": {**self._sample(curves, max_points), "mid": mid.strftime("%Y-%m-%d") if mid is not None else None},
+            "years": years,
+            "facts": {k: m.get(k) for k in ("turnover_annual", "total_costs", "avg_exposure", "avg_coverage")},
+            "variants": self.db.count_variants(), "significance": sig,
+        }
+
+    def strategy_page(self, name: str, max_points: int = 500) -> dict:
+        """Una strategia: chi è, le regole in chiaro, le cautele, il risultato del backtest (se c'è) con le due metà,
+        il valore nel tempo, gli anni, i fatti (rotazione, costi...) e lo Sharpe corretto per i tentativi."""
+        import re
+
+        from modules.formats import it_text
+
+        ctx = self.ctx
+        info = ctx.strategy_label(name)
+        mine = ctx.user_strategies()
+        entry = mine.get(name) or ctx.strategy_catalog()[name]
+        definition = mine.get(name) or (entry.get("definition") if entry.get("kind") == "rules" else None)
+        rules = []
+        if definition:
+            for line in strategies.describe(definition):
+                m = re.match(r"\*\*(.+?)\*\*: (.*)", line)
+                rules.append({"label": m.group(1), "text": it_text(m.group(2))} if m else {"label": "", "text": it_text(line)})
+        result = ctx.strategy_result(name)
+        baseline = ctx.strategy_result(strategies.BASELINE)
+        ready = result is not None and baseline is not None
+        return {
+            **info, "description": (definition or {}).get("description") or entry.get("description") or "",
+            "investor": entry.get("investor") if not info["mine"] else None,
+            "definition": definition, "rules": rules,
+            "watchlist_only": bool((definition or {}).get("universe", {}).get("watchlist_only")),
+            "baseline_name": strategies.BASELINE,
+            "report": self._report(name, result, None if name == strategies.BASELINE else baseline, max_points)
+            if ready else None,
+        }
+
+    def strategy_holdings_view(self, name: str) -> dict:
+        """Cosa terrebbe oggi (non è un consiglio): titoli, pesi, punteggio della classifica."""
+        hold = self.ctx.strategy_holdings(name)
+        rows = [] if hold.empty else hold.to_dict("records")
+        return {"rows": rows, "invested": float(hold["weight"].sum()) if not hold.empty else 0.0}
+
+    def strategies_overview(self) -> dict:
+        """Tutte le strategie con un backtest ai dati di oggi (o il più recente), ordinate per la seconda metà; le
+        altre in `missing`."""
+        ctx = self.ctx
+        baseline = ctx.strategy_result(strategies.BASELINE)
+        rows, missing = [], []
+        for item in ctx.strategies_list():
+            res = ctx.strategy_result(item["name"])
+            if res is None or res["equity"].empty:
+                missing.append(item["name"])
+                continue
+            t = ctx.period_table(res, baseline)
+            own = t[t["what"] == "Strategia"]
+
+            def get(prefix: str, col: str):
+                r = own[own["period"].str.startswith(prefix)]
+                return float(r[col].iloc[0]) if not r.empty else None
+
+            rows.append({**item, "since": int(res["equity"].index[0].year), "stale": bool(res.get("stale")),
+                         "all": get("Tutto", "cagr"), "first": get("1a", "cagr"), "second": get("2a", "cagr"),
+                         "sharpe": get("Tutto", "sharpe_ratio"), "drawdown": get("Tutto", "max_drawdown"),
+                         "turnover": res["metrics"].get("turnover_annual")})
+        rows.sort(key=lambda r: -np.inf if r["second"] is None else r["second"], reverse=True)
+        return {"rows": rows, "missing": missing}
+
+    def strategy_builder_options(self) -> dict:
+        """Cosa serve al costruttore: settori, metriche per la classifica (con un verso migliore, mai il voto della
+        checklist), ricerche pronte e salvate da cui partire, pesi e ribilanciamenti, definizione vuota."""
+        from modules import screener
+        from modules.metrics import JUDGMENT_KEYS, METRICS
+
+        saved = self.db.load_screens()
+        return {
+            "sectors": sorted({s for s in self.ctx.sectors().values() if isinstance(s, str) and s}),
+            "rankable": [{"key": m.key, "label": m.label, "group": m.group} for m in METRICS
+                         if m.better and m.key not in JUDGMENT_KEYS],
+            "excluded": sorted(JUDGMENT_KEYS),
+            "presets": [{"name": k, "rules": v["rules"]} for k, v in screener.PRESETS.items()],
+            "saved": [{"name": k, "rules": v["rules"], "sectors": list(v.get("sectors") or [])} for k, v in saved.items()],
+            "weightings": [{"value": k, "label": v} for k, v in strategies.WEIGHTINGS.items()],
+            "rebalance": [{"value": k, "label": v} for k, v in strategies.REBALANCE.items()],
+            "default": strategies.default_definition(),
+            "reserved": list(self.ctx.strategy_catalog()),
+        }
+
+    def strategy_preview(self, definition: dict) -> dict:
+        """Quante aziende passano oggi i filtri e quante ne terrebbe la strategia; `error` se la definizione non va."""
+        from modules import screener
+
+        try:
+            strategies.validate_definition(definition)
+        except (ValueError, KeyError, TypeError) as exc:
+            return {"ok": False, "error": str(exc)}
+        table = self.ctx.explore_table()
+        u = definition.get("universe") or {}
+        if u.get("sectors"):
+            table = table[table["sector"].isin(u["sectors"])]
+        if u.get("watchlist_only"):
+            table = table[table["followed"]]
+        passing = int(screener.apply_rules(table, definition.get("filters", []), self.ctx.sectors()).sum())
+        return {"ok": True, "error": None, "passing": passing, "universe": int(len(table)),
+                "held": min(passing, int(definition["portfolio"]["positions"]))}
+
+    def save_user_strategy(self, definition: dict, editing: str | None = None) -> str:
+        """Salva una strategia dell'utente (con `editing`, sostituisce quella con quel nome); ValueError in italiano."""
+        name = str(definition.get("name") or "").strip()
+        if not name:
+            raise ValueError("Dai un nome alla strategia.")
+        if name in self.ctx.strategy_catalog():
+            raise ValueError("C'è già una strategia standard con questo nome.")
+        definition = {**strategies.default_definition(), **definition, "name": name}
+        strategies.validate_definition(definition)
+        mine = self.ctx.user_strategies()
+        if name in mine and name != editing:
+            raise ValueError(f"Hai già una strategia \"{name}\": scegli un altro nome.")
+        if editing and editing != name and editing in mine:
+            self.db.delete_strategy(editing)
+        self.db.save_strategy(definition)
+        return name
+
+    def delete_user_strategy(self, name: str) -> None:
+        """Toglie una strategia dell'utente (i backtest già fatti restano tra gli esperimenti)."""
+        if name not in self.ctx.user_strategies():
+            raise KeyError(name)
+        self.db.delete_strategy(name)

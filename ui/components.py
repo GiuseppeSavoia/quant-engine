@@ -425,18 +425,12 @@ def change_rows_html(summary: Sequence[dict], *, limit: int = 3, price_line: str
 
 
 # ================================================================== avvisi (modules/alerts.py)
-ALERT_TONES = {"PX-": "pos", "FV": "pos", "FV~": "pos", "INS": "pos", "PX+": "neg", "8K": "neg", "CHG": "warn",
-               "REV": "warn", "52S": "warn", "MRG": "warn", "DOC": "info", "MOV": "warn", "MOV1": "warn",
-               "VRD": "info"}  # VRD: giudizio cambiato (modules/alerts.py, verdict_history)
+from modules.alerts import ALERT_TONES, alert_tone  # noqa: E402 - una sola definizione
 
 
 def alert_badge(code: str, data: dict | None = None) -> str:
     """Codice dell'avviso come distintivo col tono giusto (MOV/MOV1 secondo il verso del movimento)."""
-    tone = ALERT_TONES.get(code, "neutral")
-    if code in ("MOV", "MOV1") and data:
-        r = _num(data.get("ret_1m", data.get("ret_1d")))
-        tone = "neutral" if r is None else ("pos" if r > 0 else "neg")
-    return badge(code, tone)
+    return badge(code, alert_tone(code, data))
 
 
 def _ago(created, now=None) -> str:

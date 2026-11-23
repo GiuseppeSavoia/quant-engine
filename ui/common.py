@@ -58,10 +58,20 @@ def main_config_args() -> list[str]:
 
 
 
-# aspetto chiaro: i valori di §3.3 (accento blu 4,94:1 sul bianco); tutto il resto: valori predefiniti di Streamlit
-CLASSIC_THEME = {"base": "light", "primaryColor": "#1f6fd1", "linkColor": "#1f6fd1", "font": "sans-serif",
-                 "codeFont": "monospace", "greenColor": "#0a7f0a", "redColor": "#b42f2f", "borderColor": "#8a8983",
-                 "showWidgetBorder": True}
+# Aspetto chiaro = base del prodotto (2026-11-23, stile Apple): fondo #f5f5f7, schede bianche, blu di sistema
+# (#0071e3, 4,6:1 sul bianco), carattere di sistema (SF Pro sul Mac), pulsanti a pillola. Tutte le opzioni esplicite:
+# quelle che mancano qui _apply_theme le mette a None (valori predefiniti di Streamlit). Stessi valori di TOKENS_LIGHT.
+FONT_STACK = "-apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, Inter, Segoe UI, Roboto, sans-serif"
+LIGHT_THEME = {"base": "light", "primaryColor": "#0071e3", "backgroundColor": "#f5f5f7",
+               "secondaryBackgroundColor": "#ffffff", "textColor": "#1d1d1f", "linkColor": "#0066cc",
+               "borderColor": "#a1a1a6", "showWidgetBorder": True, "baseRadius": "12px", "buttonRadius": "full",
+               "font": FONT_STACK, "headingFont": FONT_STACK, "codeFont": "monospace", "baseFontSize": 14,
+               "dataframeBorderColor": "#e5e5ea", "dataframeHeaderBackgroundColor": "#fafafc",
+               "dataframeHeaderTextColor": "#6e6e73", "greenColor": "#248a3d", "redColor": "#d70015",
+               "orangeColor": "#b25000", "blueColor": "#0071e3",
+               "chartCategoricalColors": ["#007aff", "#ff9500", "#af52de", "#34c759", "#ff2d55"]}
+LIGHT_SIDEBAR = {"backgroundColor": "#fbfbfd", "secondaryBackgroundColor": "#f5f5f7", "textColor": "#1d1d1f"}
+CLASSIC_THEME = LIGHT_THEME  # nome storico
 
 
 @st.cache_resource
@@ -111,10 +121,10 @@ def system_scheme() -> str | None:
 
 
 def _terminal_wanted() -> bool:
-    """Tema scuro (terminale)? Con "Segui il sistema" e schema ancora ignoto: scuro, come prima."""
+    """Tema scuro (grafite)? Con "Segui il sistema" e schema ancora ignoto: chiaro, la base del prodotto."""
     mode = appearance()
     if mode == "sistema":
-        return system_scheme() != "light"
+        return system_scheme() == "dark"
     return mode == "scuro"
 
 
@@ -153,7 +163,7 @@ def _apply_theme(terminal: bool) -> None:
 
     changed = False
     for section, opts in _terminal_theme().items():
-        classic = CLASSIC_THEME if section == "theme" else {}
+        classic = LIGHT_THEME if section == "theme" else LIGHT_SIDEBAR
         for key in set(opts) | set(classic):
             value = opts.get(key) if terminal else classic.get(key)
             if st_config.get_option(f"{section}.{key}") != value:
@@ -193,41 +203,55 @@ def _on_appearance():
 TERMINAL = _terminal_wanted()
 
 
-# ---------------------------------------------------------------- token (§3.1, §3.3)
-# contrasti WCAG calcolati nella revisione: testo >= 4,5:1, controlli >= 3:1; "--text-off" solo per "–" e disattivati
-TOKENS_TERMINAL = {
-    "bg": "#000000", "surface-1": "#0d0d0d", "surface-2": "#1a1a1a", "surface-hi": "#3a2a00",
-    "border": "#2a2a2a", "border-ctl": "#5c5c5c",
-    "text": "#e8e6e1", "text-num": "#ffffff", "text-2": "#b4b2a9", "text-3": "#9a978f", "text-off": "#6e6d68",
-    "accent": "#ffa028", "on-accent": "#000000", "header-line": "#ffa028", "label": "#a8a59c",
-    "pos": "#2fbf4a", "neg": "#ff5a52", "warn": "#ffd166", "info": "#5aa0f0", "trap": "#e8743b",
+# ---------------------------------------------------------------- token (sistema visivo 2026-11-23, stile Apple)
+# Linguaggio visivo ispirato alle app Apple (nessun nome, logo o elemento di Apple): carattere di sistema (SF Pro sul
+# Mac), fondo #f5f5f7 con schede bianche senza bordo e angoli ampi, blu di sistema come unico accento, pulsanti a
+# pillola, controllo segmentato per le pagine, grigi caldi per il testo secondario. Scuro = nero con schede #1c1c1e.
+# Testo >= 4,5:1 sul suo fondo, bordo dei controlli >= 3:1; "--text-off" solo per "–" e disattivati.
+TOKENS_DARK = {
+    "bg": "#000000", "surface-1": "#1c1c1e", "surface-2": "#2c2c2e", "surface-hi": "#0b2a4a", "chrome": "#161617",
+    "border": "#38383a", "border-ctl": "#7c7c80", "track": "#3a3a3c",
+    "shadow": "0 0 0 1px rgba(255,255,255,.05)", "shadow-lg": "0 12px 40px rgba(0,0,0,.6)",
+    "text": "#f5f5f7", "text-num": "#ffffff", "text-2": "#c7c7cc", "text-3": "#98989d", "text-off": "#636366",
+    "accent": "#0a84ff", "accent-soft": "#0b2a4a", "on-accent": "#ffffff", "header-line": "#38383a",
+    "label": "#98989d", "fill": "rgba(118,118,128,.24)", "fill-hover": "rgba(118,118,128,.34)",
+    "pos": "#30d158", "neg": "#ff453a", "warn": "#ff9f0a", "info": "#2997ff", "trap": "#ff7a45",
 }
 TOKENS_LIGHT = {
-    "bg": "#ffffff", "surface-1": "#f7f6f3", "surface-2": "#efeee9", "surface-hi": "#fff1cc",
-    "border": "#e3e1da", "border-ctl": "#8a8983",
-    "text": "#1f1e1c", "text-num": "#111111", "text-2": "#52514e", "text-3": "#6b6a66", "text-off": "#8a8983",
-    "accent": "#1f6fd1", "on-accent": "#ffffff", "header-line": "#d3d1c7", "label": "#6b6a66",
-    "pos": "#0a7f0a", "neg": "#b42f2f", "warn": "#8a5a00", "info": "#1f6fd1", "trap": "#b0451a",
+    "bg": "#f5f5f7", "surface-1": "#ffffff", "surface-2": "#f5f5f7", "surface-hi": "#e8f1fd", "chrome": "#fbfbfd",
+    "border": "#e5e5ea", "border-ctl": "#86868b", "track": "#e5e5ea",
+    "shadow": "0 1px 2px rgba(0,0,0,.04), 0 4px 18px rgba(0,0,0,.04)", "shadow-lg": "0 16px 48px rgba(0,0,0,.14)",
+    "text": "#1d1d1f", "text-num": "#1d1d1f", "text-2": "#424245", "text-3": "#6e6e73", "text-off": "#aeaeb2",
+    "accent": "#0071e3", "accent-soft": "#e8f1fd", "on-accent": "#ffffff", "header-line": "#e5e5ea",
+    "label": "#6e6e73", "fill": "rgba(118,118,128,.12)", "fill-hover": "rgba(118,118,128,.2)",
+    "pos": "#248a3d", "neg": "#d70015", "warn": "#b25000", "info": "#0066cc", "trap": "#c93400",
 }
-TYPE_SCALE = {"fs-micro": "12px", "fs-data": "13px", "fs-body": "14px", "fs-title": "13px", "fs-h2": "16px",
-              "fs-h1": "20px", "fs-key": "26px", "fs-big": "18px"}
+TOKENS_TERMINAL = TOKENS_DARK  # nome storico
+TYPE_SCALE = {"fs-micro": "12px", "fs-data": "13px", "fs-body": "15px", "fs-title": "17px", "fs-h2": "19px",
+              "fs-h1": "34px", "fs-key": "30px", "fs-big": "22px"}
 FONTS = {"mono": 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace',
-         "sans": '-apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif'}
-TOKENS = TOKENS_TERMINAL if TERMINAL else TOKENS_LIGHT
+         "sans": '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Inter, '
+                 '"Segoe UI", Roboto, Arial, sans-serif'}
+RADII = {"r-sm": "8px", "r-md": "12px", "r-lg": "18px"}
+TOKENS = TOKENS_DARK if TERMINAL else TOKENS_LIGHT
 
 
-# palette categoriale (ordine fisso, mai ciclato), validata per ciascun fondo; il 5° colore solo per Confronta
-SERIES = (["#c98500", "#3987e5", "#d95926", "#9085e9", "#199e70"] if TERMINAL
-          else ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"])
+# palette categoriale (ordine fisso, mai ciclato): colori di sistema in stile Apple (blu, arancio, viola, verde, rosa),
+# validata con lo script della skill dataviz (chiaro su #ffffff e #f5f5f7; scuro su #1c1c1e e #000000; il verde dello
+# scuro e l'arancio sono un po' più scuri dei colori di sistema per stare nella fascia di luminosità). Arancio secondo:
+# la media mobile non si confonde con le candele verdi. Il 5° colore solo per Confronta.
+SERIES_DARK = ["#0a84ff", "#d97800", "#bf5af2", "#28a745", "#e8508a"]
+SERIES_LIGHT = ["#007aff", "#ff9500", "#af52de", "#34c759", "#ff2d55"]
+SERIES = SERIES_DARK if TERMINAL else SERIES_LIGHT
 
 
-MUTED = "#8a8983"                                   # linee di riferimento (prezzo, mediane, soglie)
+MUTED = "#8e8e93"                                   # linee di riferimento (prezzo, mediane, soglie)
 
 
-INK2 = "#b4b2a9" if TERMINAL else "#52514e"         # riferimenti più marcati
+INK2 = "#c7c7cc" if TERMINAL else "#424245"         # riferimenti più marcati
 
 
-GRID = "#262626" if TERMINAL else None
+GRID = "#2c2c2e" if TERMINAL else "#ededf0"
 
 
 STATUS = {"BUY": TOKENS["pos"], "BLOCKED": TOKENS["neg"], "SKIP": MUTED}
@@ -236,86 +260,107 @@ STATUS = {"BUY": TOKENS["pos"], "BLOCKED": TOKENS["neg"], "SKIP": MUTED}
 ACTION_LABEL = {"BUY": "▲ BUY", "SKIP": "● SKIP", "BLOCKED": "■ BLOCKED"}
 
 
-DIVERGING = [[0.0, "#d03b3b"], [0.5, "#383835" if TERMINAL else "#f0efec"], [1.0, SERIES[1] if TERMINAL else SERIES[0]]]
+DIVERGING = [[0.0, "#ff3b30"], [0.5, "#2c2c2e" if TERMINAL else "#e5e5ea"], [1.0, SERIES[0]]]
 
 
-AMBER = "#ffa028"
 ACCENT = TOKENS["accent"]
+AMBER = ACCENT  # nome storico: era l'ambra del terminale
 
 
 UP, DOWN = TOKENS["pos"], TOKENS["neg"]  # variazioni (sempre con ▲▼, non solo colore)
 
 
 def _root_css() -> str:
-    lines = [f"  --{k}: {v};" for k, v in {**TOKENS, **TYPE_SCALE, **FONTS}.items()]
+    lines = [f"  --{k}: {v};" for k, v in {**TOKENS, **TYPE_SCALE, **FONTS, **RADII}.items()]
     return ":root {\n" + "\n".join(lines) + "\n}\n"
 
 
 # ---------------------------------------------------------------- CSS dell'app (iniettato da app.py in ogni pagina)
+# NB: mai il carattere "minore di" in questo CSS, nemmeno nei commenti: DOMPurify di st.html scarterebbe tutto lo stile.
 BASE_CSS = """
-/* fondo e testo: sans-serif per le frasi, monospazio solo per numeri, tabelle, codici, ticker, barra comandi */
-.stApp { background: var(--bg); color: var(--text); }
+/* un solo carattere: quello di sistema (SF Pro sul Mac), cifre tabellari per i numeri; monospazio solo per i codici */
+.stApp { background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 .stApp, .stApp p, .stApp li, .stApp label, .stApp input, .stApp textarea, .stApp button { font-family: var(--sans); }
-.stMarkdown p, .stMarkdown li { font-size: var(--fs-body); line-height: 1.45; }
-h1, h2, h3, h4 { font-family: var(--sans) !important; text-transform: none !important; letter-spacing: 0 !important; }
-h1 { font-size: var(--fs-h1) !important; font-weight: 600 !important; color: var(--text-num) !important;
-  padding: .1rem 0 .2rem !important; line-height: 1.3 !important; }
-h2 { font-size: 18px !important; font-weight: 600 !important; color: var(--text) !important; }
-h3 { font-size: var(--fs-h2) !important; font-weight: 600 !important; color: var(--text) !important;
-  border-bottom: 1px solid var(--border); padding-bottom: .25rem !important; }
-h4 { font-size: var(--fs-body) !important; font-weight: 600 !important; color: var(--text) !important; }
+.stMarkdown p, .stMarkdown li { font-size: var(--fs-body); line-height: 1.5; letter-spacing: -.009em; }
+h1, h2, h3, h4 { font-family: var(--sans) !important; text-transform: none !important; }
+h1 { font-size: var(--fs-h1) !important; font-weight: 700 !important; color: var(--text-num) !important;
+  letter-spacing: -.022em !important; padding: .6rem 0 .15rem !important; line-height: 1.15 !important; }
+h2 { font-size: 24px !important; font-weight: 700 !important; color: var(--text) !important; letter-spacing: -.018em !important; }
+h3 { font-size: var(--fs-h2) !important; font-weight: 650 !important; color: var(--text) !important;
+  letter-spacing: -.012em !important; padding-bottom: .1rem !important; }
+h4 { font-size: var(--fs-body) !important; font-weight: 650 !important; color: var(--text) !important; }
 [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {
-  font-size: var(--fs-data) !important; color: var(--text-2) !important; }
-[data-testid="stWidgetLabel"] p { font-size: var(--fs-data) !important; color: var(--text-2); }
+  font-size: var(--fs-data) !important; color: var(--text-3) !important; line-height: 1.5; }
+[data-testid="stWidgetLabel"] p { font-size: var(--fs-data) !important; color: var(--text-3); font-weight: 500; }
 code { font-family: var(--mono) !important; }
-.stMarkdown code { color: var(--text); background: var(--surface-2); font-size: .92em; }
-/* numeri in evidenza: st.metric */
-[data-testid="stMetricLabel"] p { font: 500 var(--fs-micro) var(--mono) !important; color: var(--accent) !important;
-  text-transform: uppercase; letter-spacing: .04em; }
-[data-testid="stMetricValue"] { font: 500 var(--fs-big) var(--mono) !important; color: var(--text-num);
-  font-variant-numeric: tabular-nums; }
+.stMarkdown code { color: var(--text); background: var(--fill); font-size: .88em; border-radius: 6px; padding: 1px 5px; }
+hr { border-color: var(--border) !important; }
+a { text-decoration: none; }
+/* numeri in evidenza: st.metric come una scheda */
+[data-testid="stMetric"] { background: var(--surface-1); border-radius: var(--r-lg); padding: 16px 18px;
+  box-shadow: var(--shadow); }
+[data-testid="stMetricLabel"] p { font: 500 var(--fs-data) var(--sans) !important; color: var(--text-3) !important; }
+[data-testid="stMetricValue"] { font: 650 26px var(--sans) !important; color: var(--text-num);
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 [data-testid="stMetricDelta"] { font-size: var(--fs-micro) !important; }
-/* menu, schede, expander: niente maiuscolo, 13-14 px */
-button[role="tab"] p { font-size: var(--fs-body) !important; text-transform: none !important; }
-[data-testid="stExpander"] summary p { font-size: var(--fs-body) !important; color: var(--text) !important;
-  text-transform: none !important; }
-[data-testid="stExpander"] details { border-color: var(--border-ctl) !important; border-radius: 0 !important; }
-[data-testid="stPopoverButton"] p { font-size: var(--fs-data) !important; text-transform: none; }
-/* testata di Streamlit: menu in alto, riga sottile sotto; niente barra laterale */
-[data-testid="stHeader"] { background: var(--bg) !important; border-bottom: 1px solid var(--header-line); }
+/* schede (st.tabs), expander, popover */
+button[role="tab"] p { font-size: var(--fs-body) !important; font-weight: 500; }
+[data-testid="stExpander"] details { border: 0 !important; border-radius: var(--r-md) !important;
+  background: var(--surface-1); box-shadow: var(--shadow); overflow: hidden; }
+[data-testid="stExpander"] summary { padding-top: 12px; padding-bottom: 12px; }
+[data-testid="stExpander"] summary p { font-size: var(--fs-body) !important; font-weight: 550; color: var(--text) !important; }
+[data-testid="stExpander"] summary:hover { background: var(--surface-2); }
+[data-testid="stPopoverButton"] p { font-size: var(--fs-data) !important; font-weight: 500; }
+[data-testid="stPopoverBody"] { background: var(--surface-1) !important; border: 0 !important;
+  border-radius: var(--r-md) !important; box-shadow: var(--shadow-lg) !important; }
+/* barra in alto (menu, marchio): come la barra di una finestra, unita alla barra di ricerca sotto */
+[data-testid="stHeader"] { background: var(--chrome) !important; border-bottom: 0; }
 [data-testid="stTopNav"] *, [data-testid="stTopNavSection"] * { font-size: var(--fs-data) !important;
-  text-transform: none !important; letter-spacing: 0 !important; }
-[data-testid="stSidebarCollapsedControl"], [data-testid="stSidebar"] { display: none !important; }
-/* chip dei multiselect: grigie con bordo (l'accento pieno solo per l'azione principale e il tasto attivo).
-   Streamlit 1.66 disegna le chip con react-aria (span[data-tag] dentro stMultiSelectTagsContainer), non più con
-   baseweb: il vecchio selettore resta per le versioni precedenti */
-.stMultiSelect [data-baseweb="tag"], [data-testid="stMultiSelectTagsContainer"] [data-tag] {
-  background: var(--surface-2) !important; border: 1px solid var(--border-ctl) !important;
-  border-radius: 0 !important; }
-.stMultiSelect [data-baseweb="tag"] span, .stMultiSelect [data-baseweb="tag"] svg,
+  font-weight: 500; text-transform: none !important; letter-spacing: -.005em !important; }
+[data-testid="stSidebar"], [data-testid="stExpandSidebarButton"] { display: none !important; }
+[data-testid="stHeaderLogo"], [data-testid="stLogo"] { height: 28px !important; max-height: 28px !important;
+  width: auto !important; max-width: none !important; }
+/* chip dei multiselect: pillole grigie piene (react-aria in Streamlit 1.66) */
+[data-testid="stMultiSelectTagsContainer"] [data-tag] {
+  background: var(--surface-2) !important; border: 1px solid var(--border) !important; border-radius: 999px !important; }
 [data-testid="stMultiSelectTagsContainer"] [data-tag] *, [data-testid="stMultiSelectTagsContainer"] [data-tag] {
   color: var(--text) !important; fill: var(--text) !important; font-size: var(--fs-micro); }
 [data-testid="stMultiSelectTagsContainer"] [data-tag]:focus-visible { outline: 2px solid var(--accent); }
-/* pulsanti secondari con bordo dei controlli (>= 3:1) */
-.stButton button[kind="secondary"], .stDownloadButton button[kind="secondary"], [data-testid="stPopoverButton"] {
-  border-color: var(--border-ctl) !important; }
-/* moduli (§3.10): niente +/- sui numeri, focus d'accento */
+/* pulsanti a pillola: primario blu pieno, secondario grigio pieno senza bordo */
+.stButton button, .stDownloadButton button, .stFormSubmitButton button, [data-testid="stPopoverButton"] {
+  font-weight: 500; border-radius: 999px !important; transition: background .15s, transform .1s; }
+.stButton button:active, .stDownloadButton button:active, [data-testid="stPopoverButton"]:active { transform: scale(.98); }
+.stButton button[kind="secondary"], .stDownloadButton button[kind="secondary"], [data-testid="stPopoverButton"],
+.stFormSubmitButton button[kind="secondaryFormSubmit"] {
+  border-color: transparent !important; background: var(--fill) !important; color: var(--text) !important; }
+.stButton button[kind="secondary"]:hover, .stDownloadButton button[kind="secondary"]:hover,
+[data-testid="stPopoverButton"]:hover { background: var(--fill-hover) !important; }
+.stButton button[kind="primary"]:hover, .stDownloadButton button[kind="primary"]:hover { filter: brightness(1.08); }
+/* campi: angoli ampi, anello di focus blu morbido */
+[data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"],
+[data-testid="stTextAreaRootElement"] { border-radius: 10px !important; }
 [data-testid="stNumberInputStepDown"], [data-testid="stNumberInputStepUp"] { display: none !important; }
-.stApp input:focus-visible, .stApp textarea:focus-visible { outline: 2px solid var(--accent) !important;
-  outline-offset: -1px; }
-/* pagina: margini laterali 24 px, spazi a multipli di 4 */
-.block-container { padding: 3.9rem 24px 3.2rem !important; max-width: 100% !important; }
-[data-testid="stVerticalBlock"] { gap: 12px; }
-[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 0 !important; }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(> div > div > div > .stHtml .qe-panel-title),
-div[data-testid="stVerticalBlock"]:has(> .stElementContainer .qe-panel-title) { background: var(--surface-1); }
+.stApp input:focus-visible, .stApp textarea:focus-visible { outline: none !important; }
+[data-testid="stTextInputRootElement"]:focus-within, [data-testid="stTextAreaRootElement"]:focus-within,
+[data-testid="stNumberInputContainer"]:focus-within { box-shadow: 0 0 0 4px var(--accent-soft);
+  border-color: var(--accent) !important; }
+/* pagina: margini laterali 40 px, larghezza massima per schermi grandi, aria tra i blocchi */
+.block-container { padding: 3.75rem 40px 3.8rem !important; max-width: 1480px !important; }
+[data-testid="stVerticalBlock"] { gap: 16px; }
+/* schede (pannelli, components.panel): bianche su fondo grigio, senza bordo, angoli ampi, ombra appena percettibile */
+div[data-testid="stVerticalBlock"]:has(> .stElementContainer > .stHtml > .qe-panel-title) {
+  background: var(--surface-1); border: 0 !important; border-radius: var(--r-lg) !important;
+  box-shadow: var(--shadow); padding: 18px 20px 20px !important; gap: 12px; }
 .modebar-container { display: none !important; }
-/* nessun HTML più largo del suo riquadro (A2): le tabelle larghe scorrono dentro, non coprono i vicini */
+/* nessun HTML più largo del suo riquadro: le tabelle larghe scorrono dentro, non coprono i vicini */
 .stHtml { max-width: 100%; overflow-x: auto; }
+/* tabelle st.dataframe: angoli come le schede */
+[data-testid="stDataFrame"] > div { border-radius: var(--r-md); }
 /* toast sopra la barra di stato */
-[data-testid="stToastContainer"] { bottom: 2.4rem !important; z-index: 1000200 !important; }
-[data-testid="stToast"] { border: 1px solid var(--border-ctl); border-radius: 0 !important; font-size: var(--fs-body); }
-/* attesa (§3.9): barra sottile animata sotto la testata mentre lo script gira */
+[data-testid="stToastContainer"] { bottom: 2.8rem !important; z-index: 1000200 !important; }
+[data-testid="stToast"] { border: 0; border-radius: var(--r-md) !important; font-size: var(--fs-body);
+  box-shadow: var(--shadow-lg); }
+/* attesa: barra sottile animata sotto la testata mentre lo script gira */
 body:has([data-testid="stStatusWidget"]) [data-testid="stHeader"]::after { content: ""; position: absolute; left: 0;
   right: 0; bottom: -1px; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent);
   background-size: 40% 100%; background-repeat: no-repeat; animation: qe-run 1s linear infinite; }
@@ -326,24 +371,24 @@ body:has([data-testid="stStatusWidget"]) [data-testid="stHeader"]::after { conte
 COMPONENTS_CSS = """
 .pos { color: var(--pos); } .neg { color: var(--neg); } .flat { color: var(--text-3); }
 .off, .qe-na { color: var(--text-off); }
-/* pannello (§3.7) */
-.qe-panel-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-  margin: -.4rem -.6rem .5rem; padding: 5px 10px; background: var(--surface-2); border-left: 3px solid var(--accent);
-  border-bottom: 1px solid var(--border); font: 600 var(--fs-title) var(--sans); color: var(--text);
-  text-transform: uppercase; letter-spacing: .05em; }
+/* titolo della scheda (pannello) */
+.qe-panel-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0;
+  font: 650 var(--fs-title)/1.3 var(--sans); color: var(--text-num); letter-spacing: -.02em; }
 .qe-panel-title .l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.qe-panel-title .r { color: var(--text-3); text-transform: none; font: 400 var(--fs-micro) var(--sans);
-  letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.qe-panel-title .r a { color: var(--info); text-decoration: none; }
-/* tabelle fitte (§3.5) */
+.qe-panel-title .r { color: var(--text-3); font: 400 var(--fs-micro) var(--sans); letter-spacing: 0; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.qe-panel-title .r a { color: var(--info); font-weight: 400; }
+.qe-panel-title .r a:hover { text-decoration: underline; }
+/* tabelle: righe ariose, separatori sottili, intestazioni grigie */
 .qe-tablewrap { overflow-x: auto; max-width: 100%; }
-table.qe-dense { width: 100%; border-collapse: collapse; table-layout: auto; font: var(--fs-data)/1.35 var(--sans);
-  font-variant-numeric: tabular-nums lining-nums; margin: 0; }
-table.qe-dense th { position: sticky; top: 0; background: var(--surface-2); color: var(--label);
-  font-size: var(--fs-micro); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; text-align: left;
-  padding: 4px 8px; border-bottom: 1px solid var(--border-ctl); white-space: nowrap; }
-table.qe-dense td { padding: 4px 8px; border-bottom: 1px solid var(--border); color: var(--text-num);
+table.qe-dense { width: 100%; border-collapse: collapse; table-layout: auto; font: var(--fs-data)/1.4 var(--sans);
+  font-variant-numeric: tabular-nums lining-nums; margin: 0; letter-spacing: -.005em; }
+table.qe-dense th { position: sticky; top: 0; background: var(--surface-1); color: var(--label);
+  font-size: var(--fs-micro); font-weight: 500; text-align: left; padding: 6px 12px 8px;
+  border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.qe-dense td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text-num);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+table.qe-dense tr:last-child td { border-bottom: 0; }
 table.qe-dense td.t { color: var(--text); }
 table.qe-dense td.n, table.qe-dense th.n { text-align: right; }
 table.qe-dense td.na { color: var(--text-off); text-align: right; }
@@ -353,145 +398,169 @@ table.qe-dense td.fill { width: 100%; max-width: 0; }
 table.qe-dense tr:has(a.qe-tk):hover td { background: var(--surface-2); }
 table.qe-dense tr.me td { background: var(--surface-hi); }
 table.qe-dense tr.miss td { color: var(--text-off); }
-a.qe-tk { color: var(--info); text-decoration: none; font-family: var(--mono); font-weight: 600; }
+a.qe-tk { color: var(--info); font-family: var(--sans); font-weight: 600; letter-spacing: .01em; }
 a.qe-tk:hover { text-decoration: underline; }
-.qe-more, .qe-empty-line { color: var(--text-3); font-size: var(--fs-micro); padding: 4px 8px; }
+.qe-more, .qe-empty-line { color: var(--text-3); font-size: var(--fs-micro); padding: 8px 12px; }
 .qe-empty-line { font-size: var(--fs-data); color: var(--text-2); }
-/* distintivi e stati vuoti (§3.8) */
-.qe-badge { display: inline-block; padding: 1px 6px; font: 500 var(--fs-micro)/1.4 var(--mono);
-  text-transform: uppercase; letter-spacing: .04em; border: 1px solid currentColor; white-space: nowrap;
-  vertical-align: baseline; }
+/* distintivi: pillole piene con colore tenue */
+.qe-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px;
+  font: 600 var(--fs-micro)/1.45 var(--sans); white-space: nowrap; vertical-align: baseline;
+  background: color-mix(in srgb, currentColor 13%, transparent); }
 .qe-badge.pos { color: var(--pos); } .qe-badge.neg { color: var(--neg); } .qe-badge.warn { color: var(--warn); }
 .qe-badge.neutral { color: var(--text-2); } .qe-badge.info { color: var(--info); } .qe-badge.trap { color: var(--trap); }
-.qe-badge.off { color: var(--text-off); border-style: dashed; } .qe-badge.accent { color: var(--accent); }
-.qe-empty { border: 1px dashed var(--border-ctl); padding: 12px 14px; color: var(--text-2); font-size: var(--fs-body); }
-.qe-empty b { display: block; color: var(--text); font-weight: 600; margin-bottom: 2px; }
-.qe-empty details { margin-top: 6px; font-size: var(--fs-micro); color: var(--text-3); }
+.qe-badge.off { color: var(--text-3); background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.qe-badge.accent { color: var(--accent); }
+/* stato vuoto */
+.qe-empty { border-radius: var(--r-md); padding: 18px 20px; color: var(--text-2); font-size: var(--fs-body);
+  background: var(--surface-1); box-shadow: var(--shadow); line-height: 1.5; }
+.qe-empty b { display: block; color: var(--text-num); font-weight: 650; margin-bottom: 4px; font-size: var(--fs-title);
+  letter-spacing: -.015em; }
+.qe-empty details { margin-top: 8px; font-size: var(--fs-micro); color: var(--text-3); }
 .qe-empty summary { cursor: pointer; }
-/* avvisi in linea */
-.qe-notice { display: flex; gap: 8px; align-items: baseline; padding: 6px 10px; margin: 4px 0;
-  border-left: 3px solid var(--text-3); background: var(--surface-2); color: var(--text); font-size: var(--fs-body); }
-.qe-notice i { font: 600 var(--fs-data) var(--mono); font-style: normal; }
-.qe-notice.neg { border-color: var(--neg); } .qe-notice.neg i { color: var(--neg); }
-.qe-notice.warn { border-color: var(--warn); } .qe-notice.warn i { color: var(--warn); }
-.qe-notice.info { border-color: var(--info); } .qe-notice.info i { color: var(--info); }
-.qe-notice.pos { border-color: var(--pos); } .qe-notice.pos i { color: var(--pos); }
-/* testata a due livelli (§3.6) e righe chiave/valore */
-.qe-head { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 8px 12px;
-  border: 1px solid var(--border-ctl); background: var(--surface-1); }
-/* testata vecchia (una riga di span con etichetta in grassetto), finché la scheda non passa a head_html; NB: mai il carattere "minore di" nel CSS, DOMPurify scarterebbe tutto lo stile */
-.qe-head:not(:has(> .qe-head-id)) { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 0;
-  font: var(--fs-data) var(--sans); font-variant-numeric: tabular-nums; padding: 6px 10px; }
-.qe-head:not(:has(> .qe-head-id)) > span { margin-right: 18px; white-space: nowrap; }
+[data-testid="stVerticalBlock"]:has(> .stElementContainer > .stHtml > .qe-panel-title) .qe-empty {
+  background: var(--surface-2); box-shadow: none; }
+/* avvisi in linea: riquadri tinti, senza barre */
+.qe-notice { display: flex; gap: 10px; align-items: baseline; padding: 11px 14px; margin: 4px 0; border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--text); font-size: var(--fs-body); line-height: 1.5; }
+.qe-notice i { font: 700 var(--fs-data) var(--sans); font-style: normal; }
+.qe-notice.neg { background: color-mix(in srgb, var(--neg) 9%, var(--surface-1)); } .qe-notice.neg i { color: var(--neg); }
+.qe-notice.warn { background: color-mix(in srgb, var(--warn) 10%, var(--surface-1)); } .qe-notice.warn i { color: var(--warn); }
+.qe-notice.info { background: color-mix(in srgb, var(--info) 8%, var(--surface-1)); } .qe-notice.info i { color: var(--info); }
+.qe-notice.pos { background: color-mix(in srgb, var(--pos) 9%, var(--surface-1)); } .qe-notice.pos i { color: var(--pos); }
+/* testata dell'azienda: nome grande, ticker accanto, prezzo grande a destra; sotto, i numeri chiave */
+.qe-head { display: grid; grid-template-columns: 1fr auto; gap: 6px 28px; padding: 24px 26px 22px;
+  border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--shadow); }
+/* testata vecchia (una riga di span con etichetta in grassetto) */
+.qe-head:not(:has(> .qe-head-id)) { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 0;
+  font: var(--fs-data) var(--sans); font-variant-numeric: tabular-nums; padding: 14px 18px; }
+.qe-head:not(:has(> .qe-head-id)) > span { margin-right: 22px; white-space: nowrap; }
 .qe-head:not(:has(> .qe-head-id)) b { color: var(--label); font-weight: 500; margin-right: 6px; }
 .qe-head:not(:has(> .qe-head-id)) .big { font-size: var(--fs-big); color: var(--text-num); }
-.qe-head .tk { font: 600 var(--fs-key)/1.15 var(--mono); color: var(--text-num); margin-right: 12px; }
-.qe-head .nm { font-size: var(--fs-h2); color: var(--text); }
-.qe-head .meta, .qe-head .src { display: block; color: var(--text-3); font-size: var(--fs-micro); }
+.qe-head-id { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; }
+.qe-head .nm { order: 1; font: 700 var(--fs-key)/1.15 var(--sans); color: var(--text-num); letter-spacing: -.025em; }
+.qe-head .tk { order: 2; font: 600 var(--fs-body)/1.4 var(--sans); color: var(--text-3); letter-spacing: .01em; }
+.qe-head-id:has(.nm:empty) .tk { font: 700 var(--fs-key)/1.15 var(--sans); color: var(--text-num); letter-spacing: -.02em; }
+.qe-head .meta { order: 3; flex-basis: 100%; color: var(--text-3); font-size: var(--fs-data); }
+.qe-head .src { display: block; color: var(--text-3); font-size: var(--fs-micro); margin-top: 4px; }
 .qe-head-px { text-align: right; white-space: nowrap; }
-.qe-head .px { font: 600 var(--fs-key)/1.15 var(--sans); color: var(--text-num); font-variant-numeric: tabular-nums; }
-.qe-head .chg { font: var(--fs-body) var(--sans); font-variant-numeric: tabular-nums; margin-left: 10px; }
-.qe-kv { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 24px; margin: 6px 0 0; }
+.qe-head .px { font: 700 var(--fs-key)/1.15 var(--sans); color: var(--text-num); font-variant-numeric: tabular-nums;
+  letter-spacing: -.025em; }
+.qe-head .chg { font: 600 var(--fs-body) var(--sans); font-variant-numeric: tabular-nums; margin-left: 10px; }
+.qe-kv { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px 32px; margin: 14px 0 0; padding-top: 16px;
+  border-top: 1px solid var(--border); }
 .qe-kv > div { white-space: nowrap; }
-.qe-kv dt { color: var(--label); font: var(--fs-micro) var(--sans); text-transform: uppercase; letter-spacing: .05em; }
-.qe-kv dd { margin: 0; font: 500 var(--fs-data) var(--sans); color: var(--text-num); font-variant-numeric: tabular-nums; }
-.qe-kv.big dd { font-size: var(--fs-big); }
+.qe-kv dt { color: var(--label); font: 400 var(--fs-micro) var(--sans); margin-bottom: 2px; }
+.qe-kv dd { margin: 0; font: 600 var(--fs-body) var(--sans); color: var(--text-num); font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em; }
+.qe-kv.big dd { font-size: var(--fs-big); letter-spacing: -.02em; }
 .qe-kv a { color: var(--info); }
-.qe-kv .rng { display: inline-block; position: relative; width: 64px; height: 4px; background: var(--border-ctl);
-  vertical-align: middle; margin: 0 4px; }
-.qe-kv .rng b { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--accent); }
-.qe-result { padding: 8px 12px; border: 1px solid var(--border-ctl); background: var(--surface-1); }
-.qe-result .qe-kv { margin: 0; }
-.qe-result-title { font: 600 var(--fs-title) var(--sans); color: var(--text); text-transform: uppercase;
-  letter-spacing: .04em; margin-bottom: 4px; }
-.qe-result-note { color: var(--text-3); font-size: var(--fs-micro); margin-top: 4px; }
-/* verdetto (§4.2, §7.1) */
-.qe-verdict { border: 1px solid var(--border-ctl); border-left: 4px solid var(--text-2); background: var(--surface-1);
-  padding: .4rem .6rem .6rem; }
-.qe-verdict.pos { border-left-color: var(--pos); } .qe-verdict.warn { border-left-color: var(--warn); }
-.qe-verdict.neg { border-left-color: var(--neg); } .qe-verdict.trap { border-left-color: var(--trap); }
-.qe-verdict.off { border-left-color: var(--text-off); border-style: dashed; }
-.qe-verdict .body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 8px 24px; }
-.qe-verdict .label { font: 600 var(--fs-key)/1.2 var(--sans); color: var(--text-2); }
-.qe-verdict .label .sym { font-family: var(--mono); margin-right: 10px; }
+.qe-kv .rng { display: inline-block; position: relative; width: 70px; height: 4px; background: var(--track);
+  border-radius: 2px; vertical-align: middle; margin: 0 6px; }
+.qe-kv .rng b { position: absolute; top: -3px; width: 10px; height: 10px; margin-left: -4px; border-radius: 50%;
+  background: var(--surface-1); box-shadow: 0 0 0 2px var(--accent); }
+.qe-result { padding: 18px 20px; border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--shadow); }
+.qe-result .qe-kv { margin: 0; padding-top: 0; border-top: 0; }
+.qe-result-title { font: 650 var(--fs-title) var(--sans); color: var(--text-num); margin-bottom: 10px; letter-spacing: -.02em; }
+.qe-result-note { color: var(--text-3); font-size: var(--fs-micro); margin-top: 10px; }
+/* verdetto: scheda pulita, il giudizio grande e colorato è il protagonista */
+.qe-verdict { border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--shadow); padding: 20px 24px 22px; }
+.qe-verdict.off { box-shadow: inset 0 0 0 1px var(--border); }
+.qe-verdict .body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px 36px; }
+.qe-verdict .label { font: 700 var(--fs-key)/1.15 var(--sans); color: var(--text-2); letter-spacing: -.025em; }
+.qe-verdict .label .sym { margin-right: 10px; }
 .qe-verdict .label.pos { color: var(--pos); } .qe-verdict .label.warn { color: var(--warn); }
 .qe-verdict .label.neg { color: var(--neg); } .qe-verdict .label.trap { color: var(--trap); }
 .qe-verdict .label.off { color: var(--text-off); }
-.qe-verdict .rule { color: var(--text-2); font-size: var(--fs-body); margin: 2px 0 8px; display: -webkit-box;
+.qe-verdict .rule { color: var(--text-3); font-size: var(--fs-body); margin: 6px 0 16px; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.qe-verdict .sub { font: 600 var(--fs-micro) var(--sans); color: var(--label); text-transform: uppercase;
-  letter-spacing: .04em; margin: 4px 0 2px; }
+.qe-verdict .sub { font: 600 var(--fs-micro) var(--sans); color: var(--label); margin: 6px 0 4px; }
 .qe-verdict ul { margin: 0 0 6px; padding-left: 18px; font-size: var(--fs-data); color: var(--text); }
 .qe-verdict li.more { color: var(--text-3); list-style: none; margin-left: -18px; }
 .qe-verdict .val { font: var(--fs-data) var(--sans); color: var(--text-num); font-variant-numeric: tabular-nums; }
-.qe-verdict .foot { color: var(--text-3); font-size: var(--fs-micro); margin-top: 6px; }
-.qe-pillar { display: flex; align-items: center; gap: 10px; font-size: var(--fs-data); padding: 2px 0;
-  white-space: nowrap; }
+.qe-verdict .foot { color: var(--text-3); font-size: var(--fs-micro); margin-top: 10px; }
+/* pilastri: barra di avanzamento continua e arrotondata */
+.qe-pillar { display: flex; align-items: center; gap: 14px; font-size: var(--fs-data); padding: 5px 0; white-space: nowrap; }
 .qe-pillar .lab { width: 13.5em; flex-shrink: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
-.qe-pillar .bar { display: inline-flex; gap: 2px; }
-.qe-pillar .bar i { width: 9px; height: 10px; background: var(--border); }
-.qe-pillar .bar i.on { background: var(--text-2); }
+.qe-pillar .bar { display: inline-flex; gap: 0; border-radius: 3px; overflow: hidden; }
+.qe-pillar .bar i { width: 11px; height: 6px; background: var(--track); }
+.qe-pillar .bar i.on { background: var(--text-3); }
 .qe-pillar .bar.pos i.on { background: var(--pos); } .qe-pillar .bar.neg i.on { background: var(--neg); }
-.qe-pillar .sc { font-family: var(--mono); color: var(--text-num); width: 2.8em; text-align: right; }
+.qe-pillar .sc { font-weight: 650; color: var(--text-num); width: 2.8em; text-align: right;
+  font-variant-numeric: tabular-nums; }
 .qe-pillar .gr { color: var(--text-2); }
 .qe-pillar .cov { color: var(--text-3); font-size: var(--fs-micro); }
-/* cosa è cambiato (§7.2) */
-.qe-changes .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
-.qe-changes .sub { font: 600 var(--fs-micro) var(--sans); color: var(--label); text-transform: uppercase;
-  letter-spacing: .04em; margin-bottom: 2px; }
+/* cosa è cambiato */
+.qe-changes .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 32px; }
+.qe-changes .sub { font: 600 var(--fs-micro) var(--sans); color: var(--label); margin-bottom: 6px; }
 .qe-changes ul { margin: 0; padding: 0; list-style: none; font-size: var(--fs-data); }
-.qe-changes li { padding: 1px 0; }
+.qe-changes li { padding: 3px 0; }
 .qe-changes .none { color: var(--text-3); font-size: var(--fs-data); }
-.qe-changes .line { margin-top: 6px; font-size: var(--fs-data); color: var(--text-2); }
-/* avvisi (§7.3) */
-.qe-alert { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: var(--fs-data);
+.qe-changes .line { margin-top: 10px; font-size: var(--fs-data); color: var(--text-2); }
+/* avvisi */
+.qe-alert { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; font-size: var(--fs-data);
   border-bottom: 1px solid var(--border); color: var(--text-2); }
+.qe-alert:last-child { border-bottom: 0; }
 .qe-alert.new { color: var(--text-num); }
 .qe-alert .dot { width: 10px; color: var(--accent); flex-shrink: 0; }
-.qe-alert .tk { font-family: var(--mono); width: 5.5em; flex-shrink: 0; }
+.qe-alert .tk { font-weight: 600; width: 5.5em; flex-shrink: 0; }
 .qe-alert .msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qe-alert .age { color: var(--text-3); font-size: var(--fs-micro); white-space: nowrap; }
 /* briciole ("dove sono") */
-.qe-crumbs { font: var(--fs-micro) var(--mono); color: var(--text-3); text-transform: uppercase; letter-spacing: .04em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qe-crumbs i { font-style: normal; margin: 0 4px; color: var(--text-off); }
-.qe-crumbs b { color: var(--accent); font-weight: 600; }
+.qe-crumbs { font: var(--fs-micro) var(--sans); color: var(--text-3); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.qe-crumbs i { font-style: normal; margin: 0 6px; color: var(--text-off); }
+.qe-crumbs b { color: var(--text-2); font-weight: 500; }
 """
 
-# cornice (§3.12): barra dei comandi + tasti fissi sotto il menu, barra di stato in fondo
+# cornice: barra di ricerca e controllo segmentato delle pagine sotto il menu (unita alla barra in alto), barra di stato
+_SEARCH_ICON = ("url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' "
+                "viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round'%3E"
+                "%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E\")")
 SHELL_CSS = """
 /* il contenitore con la chiave sta dentro un stLayoutWrapper alto quanto lui: fisso è il wrapper */
 [data-testid="stLayoutWrapper"]:has(> .st-key-qe_shell), .st-key-qe_shell { position: sticky; top: 3.75rem;
-  z-index: 990; background: var(--bg); }
-.st-key-qe_shell { padding: 6px 0 4px; border-bottom: 1px solid var(--border); gap: 4px !important; }
-.st-key-qe_shell [data-testid="stHorizontalBlock"] { gap: 12px !important; }
-input[aria-label="Comando"] { font: var(--fs-body) var(--mono) !important; color: var(--text-num) !important;
-  caret-color: var(--accent); border-color: var(--accent) !important; }
+  z-index: 990; }
+/* fascia a tutta larghezza: ombra piena oltre i bordi e ritaglio, riga sottile in fondo */
+.st-key-qe_shell { background: var(--chrome); padding: 4px 0 10px !important; margin-bottom: 8px !important;
+  gap: 4px !important; box-shadow: 0 0 0 100vmax var(--chrome), 0 1px 0 100vmax var(--border);
+  clip-path: inset(0 -100vmax -1px -100vmax); }
+.st-key-qe_shell [data-testid="stHorizontalBlock"] { gap: 16px !important; }
+/* ricerca: campo grigio pieno a pillola, come la ricerca di sistema */
+input[aria-label="Comando"] { font: var(--fs-body) var(--sans) !important; color: var(--text-num) !important;
+  caret-color: var(--accent); padding-left: 36px !important; background: transparent SEARCH_ICON no-repeat 13px center !important; }
+.st-key-qe_shell [data-testid="stTextInputRootElement"] { border-color: transparent !important; border-radius: 10px !important;
+  background: var(--fill) !important; }
+.st-key-qe_shell [data-testid="stTextInputRootElement"]:focus-within { background: var(--surface-1) !important;
+  border-color: var(--accent) !important; box-shadow: 0 0 0 4px var(--accent-soft); }
 input[aria-label="Comando"]::placeholder { color: var(--text-3) !important; opacity: 1; }
-.st-key-qe_fkeys { gap: 4px !important; flex-wrap: nowrap !important; overflow: hidden; }
+/* pagine principali: controllo segmentato (F1-F8 / Alt+1-8 restano sulla tastiera, nel suggerimento) */
+.st-key-qe_fkeys { gap: 0 !important; flex-wrap: nowrap !important; overflow: hidden; width: fit-content !important;
+  max-width: 100%; flex: 0 1 auto !important; background: var(--fill); border-radius: 9px; padding: 2px !important; }
 .st-key-qe_fkeys [data-testid="stPageLink-NavLink"], .st-key-qe_fkey_on [data-testid="stPageLink-NavLink"] {
-  background: transparent; border: 1px solid var(--accent); border-radius: 0; padding: 2px 5px !important;
-  min-height: 0 !important; margin: 0 !important; gap: 0 !important; white-space: nowrap; }
+  background: transparent; border: 0; border-radius: 7px; padding: 4px 13px !important;
+  min-height: 0 !important; margin: 0 !important; gap: 0 !important; white-space: nowrap; transition: background .15s; }
 .st-key-qe_fkeys [data-testid="stPageLink-NavLink"] span:has(> [data-testid="stIconMaterial"]) { display: none; }
-.st-key-qe_fkeys [data-testid="stPageLink-NavLink"] * { color: var(--accent) !important;
-  font: 600 var(--fs-micro)/1.5 var(--mono) !important; text-transform: none; white-space: nowrap; }
-.st-key-qe_fkeys [data-testid="stPageLink-NavLink"]:hover { background: var(--surface-2); }
+.st-key-qe_fkeys [data-testid="stPageLink-NavLink"] * { color: var(--text) !important;
+  font: 500 var(--fs-data)/1.4 var(--sans) !important; white-space: nowrap; letter-spacing: -.005em; }
+.st-key-qe_fkeys [data-testid="stPageLink-NavLink"]:hover { background: var(--fill); }
 .st-key-qe_fkey_on [data-testid="stPageLink-NavLink"], .st-key-qe_fkey_on [data-testid="stPageLink-NavLink"]:hover {
-  background: var(--accent) !important; }
-.st-key-qe_fkey_on [data-testid="stPageLink-NavLink"] * { color: var(--on-accent) !important; }
+  background: var(--surface-1) !important; box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.04); }
+.st-key-qe_fkey_on [data-testid="stPageLink-NavLink"] * { color: var(--text-num) !important; font-weight: 600 !important; }
 .st-key-qe_fkeys .stElementContainer, .st-key-qe_fkeys [data-testid="stVerticalBlock"] { width: auto !important; }
 .st-key-qe_fkey_on { width: auto !important; flex: 0 0 auto !important; }
 .st-key-qe_crumbs { min-height: 0; }
 .qe-status { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000100; display: flex; gap: 0; align-items: center;
-  padding: 4px 14px; font: var(--fs-micro)/1.4 var(--mono); white-space: nowrap; overflow: hidden;
-  background: var(--surface-2); color: var(--text-2); border-top: 1px solid var(--border-ctl); }
-.qe-status > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
-.qe-status > span + span::before { content: "·"; color: var(--text-off); margin-right: 8px; }
+  padding: 7px 40px; font: 11px/1.4 var(--sans); white-space: nowrap; overflow: hidden;
+  background: var(--chrome); color: var(--text-3); border-top: 1px solid var(--border);
+  font-variant-numeric: tabular-nums; }
+.qe-status > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
+.qe-status > span + span::before { content: "·"; color: var(--text-off); margin-right: 10px; }
 .qe-status > span.keep { flex-shrink: 0; }
 .qe-status > span.low { flex-shrink: 1; }
 .qe-status > span.lowest { flex-shrink: 1000; }
-.qe-status b { color: var(--accent); font-weight: 600; }
-.qe-status .demo { color: var(--warn); font-weight: 600; }
+.qe-status b { color: var(--text); font-weight: 600; }
+.qe-status .demo { color: var(--warn); font-weight: 700; background: color-mix(in srgb, var(--warn) 13%, transparent);
+  border-radius: 999px; padding: 0 7px; }
 .qe-status .o { color: var(--pos); } .qe-status .p { color: var(--warn); } .qe-status .c { color: var(--text-3); }
 /* esito dell'ultimo aggiornamento (barra di stato e menu "Dati") */
 .qe-status .upd-ok { color: var(--pos); } .qe-status .upd-warn { color: var(--warn); font-weight: 600; }
@@ -503,7 +572,7 @@ table.qe-steps .note { color: var(--text-3); font: var(--fs-micro)/1.35 var(--sa
 table.qe-steps details, details.qe-hist { font: var(--fs-micro) var(--sans); color: var(--text-3); margin-top: 2px; }
 table.qe-steps summary, details.qe-hist summary { cursor: pointer; }
 table.qe-steps pre { white-space: pre-wrap; margin: 2px 0 0; font: var(--fs-micro)/1.35 var(--mono); color: var(--text-2); }
-"""
+""".replace("SEARCH_ICON", _SEARCH_ICON)
 
 APP_CSS = "<style>\n" + _root_css() + BASE_CSS + COMPONENTS_CSS + SHELL_CSS + "</style>"
 # nomi storici: app.py e shell.py iniettavano questi due; ora è tutto in APP_CSS (stessi token per i due aspetti)
@@ -603,14 +672,13 @@ def _layout(fig: go.Figure, height: int = 380, legend: bool = True) -> go.Figure
     fig.update_xaxes(showgrid=False, showspikes=True, spikemode="across", spikethickness=1, spikedash="dot",
                      spikecolor=MUTED)
     fig.update_yaxes(gridwidth=1, showspikes=True, spikethickness=1, spikedash="dot", spikecolor=MUTED)
-    if TERMINAL:  # griglia appena visibile sul nero, numeri in monospazio
-        fig.update_layout(font=dict(family="ui-monospace, Menlo, monospace", size=12),
-                          hoverlabel=dict(bgcolor="#1a1a1a", bordercolor="#ffa028",
-                                          font=dict(family="ui-monospace, Menlo, monospace")))
-        fig.update_xaxes(linecolor="#333", tickcolor="#333")
-        fig.update_yaxes(gridcolor=GRID, zerolinecolor="#444")
-    else:
-        fig.update_layout(font=dict(size=12))
+    # stesso carattere dell'app, griglia appena visibile, assi e riquadro del passaggio del mouse coi token del tema
+    fig.update_layout(font=dict(family=FONTS["sans"], size=12, color=TOKENS["text-2"]),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      hoverlabel=dict(bgcolor=TOKENS["surface-1"], bordercolor=TOKENS["border"],
+                                      font=dict(family=FONTS["sans"], color=TOKENS["text"], size=12)))
+    fig.update_xaxes(linecolor=TOKENS["border"], tickcolor=TOKENS["border"], zerolinecolor=TOKENS["border"])
+    fig.update_yaxes(gridcolor=GRID, zerolinecolor=TOKENS["border"], linecolor=TOKENS["border"])
     italian_dates(fig)
     return fig
 

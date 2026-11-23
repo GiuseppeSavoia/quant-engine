@@ -9,7 +9,7 @@ No generative AI in the decision loop: only quantitative finance, SEC filings an
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/Streamlit-webapp-FF4B4B?logo=streamlit&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-data_lake-003B57?logo=sqlite&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-600%2B-success)
+![Tests](https://img.shields.io/badge/tests-660%2B-success)
 ![Mode](https://img.shields.io/badge/trading-paper_only-lightgrey)
 
 </div>
@@ -33,10 +33,24 @@ Most retail "stock pickers" mix look-ahead bias, survivorship bias and hand-tune
 | **Risk** | Circuit breaker on short history, extreme volatility and anomalous moves; risk-parity / min-variance (Ledoit-Wolf) portfolio construction with position caps. |
 | **Backtest** | Same pipeline as live analysis, run date by date with **point-in-time** prices, filings and index constituents; next-day execution, costs, ATR stop-loss / take-profit, benchmark vs SPY. |
 | **Research** | Pre-registered signal studies (`--research`, `--factors`): every score is tested for whether it actually predicts forward returns. |
-| **Webapp** | Bloomberg-style Streamlit terminal (F-key navigation, command bar): daily monitor, screener, company sheet, comparisons, portfolio, decision journal, news, data-quality audit. |
+| **Webapp** | Streamlit app with a product-style light/dark design: daily monitor, screener, company sheet, comparisons, portfolio, decision journal, news, data-quality audit. |
+| **New interface** | React + TypeScript front end over a FastAPI layer (`/api/v1`, no business logic in the API: it calls the same services as the Streamlit app); long backtests run in a server-side queue. |
+| **Investors panel** | How the published rules of 20 legendary investors read a given company today (see below). |
 | **Ops** | Step-based update pipeline with dependencies and per-step status, nightly `launchd` scheduler, macOS desktop app (pywebview), Excel model and PDF research export, optional static public site. |
 
 ![QUANT_ENGINE – daily monitor](docs/screenshots/qe-home.png)
+
+## Legendary investors panel
+
+![QUANT_ENGINE – legendary investors panel](docs/screenshots/qe-investor-panel.png)
+
+For any company, the panel asks: *would the rules of Graham, Buffett, Munger, Lynch, Philip Fisher, Templeton, Neff, Dreman, Schloss, Klarman, Zweig, O'Neil, Driehaus, O'Shaughnessy, Ken Fisher, Terry Smith, Slater, Pabrai, Greenblatt (Magic Formula) and Piotroski pick it today?*
+
+- Each investor is the same rule-based strategy used in the backtests (`modules/investors.py`): their published method translated into filters, a ranking and a number of positions, with parameters fixed **before** looking at any result.
+- For each investor the engine reports a plain outcome — *would buy it*, *likes it but has better ones*, *almost*, *not for them*, *outside their field*, *insufficient data* — rule by rule, using exactly the same selection logic as the strategy engine. Missing data never counts as a passed rule.
+- For price rules (P/E, P/B, P/E × P/B, yields, EV multiples…) it computes the **price at which the rule would pass** by recomputing the metric at that price, not by guessing.
+- A summary shows where investment styles disagree (quality vs deep value vs growth/momentum), the most common obstacle and the highest price at which one more investor would pass all of their rules.
+- **No AI and no language models**: every sentence comes from fixed templates filled with numbers from the metrics catalog. It is information only: it never feeds the app's own verdict, alerts or strategies, and it is not the investors' judgment nor a recommendation.
 
 ## Quick start
 
@@ -47,7 +61,7 @@ pip install -r requirements.txt
 
 python main.py --demo --backtest        # full run on simulated data, no network needed
 streamlit run app.py -- --demo          # webapp on http://localhost:8501
-python -m pytest                        # 600+ tests, none touch the network
+python -m pytest                        # 660+ tests, none touch the network
 ```
 
 For real data set `sec.user_agent` in `config.yaml` (the SEC requires a name and contact email), then:
@@ -67,8 +81,11 @@ data/db_manager.py single access point to the SQLite data lake (versioned schema
 modules/           sec_edgar, regime_detection, valuation_model, multi_factor, confidence_engine,
                    portfolio_optimizer, backtester, research, significance, lbo, insiders, ...
 safety/            circuit breaker
-ui/                Streamlit pages and design system (CSS tokens, light/terminal themes)
-tests/             600+ offline tests (fake sources / DemoSource)
+modules/services/  shared services used by the Streamlit app and the API
+api/               FastAPI layer (/api/v1, 127.0.0.1 only until login exists)
+web/               React + TypeScript interface (cd web && npm install && npm run build)
+ui/                Streamlit pages and design system (CSS tokens, light/dark themes)
+tests/             660+ offline tests (fake sources / DemoSource)
 ```
 
 The same `strategy.py` pipeline is used by live analysis, backtest and research, so there is no "backtest-only" code path that could drift from production.

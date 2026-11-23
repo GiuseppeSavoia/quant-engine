@@ -314,3 +314,35 @@ def notification_text(alerts, limit: int = 4) -> str:
         parts.append(f"{r['ticker']} {r['code']}: " + (msg if len(msg) <= 60 else msg[:59] + "…"))
     more = f" (+{len(rows) - limit})" if len(rows) > limit else ""
     return f"{len(rows)} avvisi nuovi: " + " | ".join(parts) + more
+
+
+# ------------------------------------------------------------------ presentazione (webapp e interfaccia web)
+# tono di ogni codice (verde = a favore di chi vuole comprare, rosso = attenzione, giallo = da guardare)
+ALERT_TONES = {"PX-": "pos", "FV": "pos", "FV~": "pos", "INS": "pos", "PX+": "neg", "8K": "neg", "CHG": "warn",
+               "REV": "warn", "52S": "warn", "MRG": "warn", "DOC": "info", "MOV": "warn", "MOV1": "warn",
+               "VRD": "info"}  # VRD: giudizio cambiato (verdict_history)
+# ordine di importanza nella pagina Oggi; i movimenti di prezzo stanno a parte (riquadro richiuso)
+ALERT_PRIORITY = ["PX-", "PX+", "FV", "FV~", "VRD", "CHG", "INS", "REV", "8K"]
+PRICE_MOVES = {"MOV", "MOV1", "52S"}
+# codici i cui messaggi hanno numeri all'inglese (1,234.5 e 26.8%); CHG viene già in italiano, 8K ha numeri di voce
+ENGLISH_NUMBER_CODES = {"PX-", "PX+", "FV", "FV~", "MOV", "MOV1", "52S", "INS", "MRG", "DOC", "REV"}
+
+
+def alert_tone(code: str, data: dict | None = None) -> str:
+    """Tono del distintivo; MOV/MOV1 secondo il verso del movimento."""
+    tone = ALERT_TONES.get(code, "neutral")
+    if code in ("MOV", "MOV1") and data:
+        try:
+            r = float(data.get("ret_1m", data.get("ret_1d")))
+        except (TypeError, ValueError):
+            return "neutral"
+        tone = "neutral" if r != r else ("pos" if r > 0 else "neg")  # r != r: NaN
+    return tone
+
+
+def alert_message_it(code: str, message) -> str:
+    """Messaggio con i numeri in italiano (solo per i codici che li scrivono all'inglese)."""
+    from modules.formats import it_number
+
+    msg = str(message or "")
+    return it_number(msg) if code in ENGLISH_NUMBER_CODES else msg

@@ -10,7 +10,7 @@ import streamlit as st
 from ui import components as C
 from ui.common import data
 
-VERDICTS = ["Avevo ragione", "Avevo torto", "Troppo presto"]
+from modules.journal import VERDICTS  # noqa: E402 - una sola definizione
 
 
 @st.dialog("Nuova decisione", width="large")
@@ -35,14 +35,14 @@ def _new_decision():
                                  format="DD/MM/YYYY", key="dec_review",
                                  help="Quel giorno la decisione compare in \"Da rivedere\" e in Le mie aziende.")
     if st.button("Salva decisione", type="primary"):
-        if not ticker or not (reason or "").strip():
+        if not ticker:
             st.error("Servono l'azienda e il perché.")
             return
-        px = d.data.close[ticker].dropna() if ticker in d.data.close else pd.Series(dtype=float)
-        d.db.add_decision({"ticker": ticker, "date": pd.Timestamp.today().normalize(), "action": action,
-                           "price": price or (float(px.iloc[-1]) if not px.empty else None),
-                           "reason": reason.strip(), "change_mind": (change or "").strip() or None,
-                           "review_date": pd.Timestamp(review)})
+        try:
+            d.add_journal_decision(ticker, action, reason, change, price or None, review)
+        except ValueError as exc:
+            st.error(str(exc))
+            return
         st.session_state["dec_toast"] = f"Decisione su {ticker} salvata: {journal.ACTIONS[action].lower()}"
         st.rerun()
 
@@ -101,7 +101,7 @@ def review_text(verdict, note) -> str:
 
 
 def _bench(d) -> str:
-    return d.cfg.get("my_portfolio", {}).get("benchmark") or d.data.benchmark or "indice"
+    return d.journal_benchmark()
 
 
 def _review_form(d, r) -> None:
@@ -119,9 +119,10 @@ def _review_form(d, r) -> None:
         note = c[0].text_input("Com'è andata e cosa hai imparato", key=f"revn_{r.id}")
         verdict = c[1].radio("Giudizio", VERDICTS, horizontal=True, key=f"revv_{r.id}", index=None)
         if st.form_submit_button("Salva la revisione", type="primary"):
-            if verdict is None:  # nessun giudizio scelto in anticipo: "Avevo ragione" preselezionato era un invito
-                st.error("Scegli un giudizio: avevo ragione, avevo torto o troppo presto.")
+            try:  # nessun giudizio scelto in anticipo: "Avevo ragione" preselezionato era un invito
+                d.review_journal_decision(r.id, verdict, note)
+            except ValueError as exc:
+                st.error(str(exc))
                 return
-            d.db.review_decision(r.id, note, verdict)
             st.session_state["dec_toast"] = f"Revisione di {r.ticker} salvata"
             st.rerun()

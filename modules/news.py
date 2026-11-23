@@ -619,13 +619,48 @@ def latest(table: pd.DataFrame, tickers: Iterable[str] | str | None = None, limi
     return out.sort_values("published", ascending=False, kind="stable").head(limit).reset_index(drop=True)
 
 
+GROUPS = ["mercati", "comunicati", "banche centrali", "italia", "aziende"]
+
+
+def filter_table(table: pd.DataFrame, tickers: Iterable[str] | None = None, groups: Iterable[str] | None = None,
+                 lang: str | None = None, query: str | None = None) -> pd.DataFrame:
+    """Filtri della pagina Notizie: alcuni ticker (elenco vuoto = nessuna notizia), gruppi di fonti, lingua, testo nel
+    titolo (senza maiuscole). Ordine e colonne restano quelli della tabella."""
+    if table is None or table.empty:
+        return pd.DataFrame(columns=COLUMNS)
+    out = table
+    if tickers is not None:
+        wanted = set(tickers)
+        out = out[[bool(wanted & set(str(t).split())) for t in out["tickers"]]]
+    if groups:
+        out = out[out["group"].isin(list(groups))]
+    if lang:
+        out = out[out["lang"] == lang]
+    if query and query.strip():
+        out = out[out["title"].str.contains(query.strip(), case=False, regex=False)]
+    return out
+
+
+def store_path(cfg_news: dict, project_root: Path | str) -> Path:
+    """File della memoria delle notizie (`news.cache_dir`, relativa al progetto)."""
+    cache = Path((cfg_news or {}).get("cache_dir", "data/cache/news"))
+    return (cache if cache.is_absolute() else Path(project_root) / cache) / "notizie.json"
+
+
+def saved_table(cfg_news: dict, project_root: Path | str) -> tuple[pd.DataFrame, datetime | None]:
+    """Notizie dalla copia salvata dal thread dei feed (niente rete) e ora dell'ultima scrittura (None se non c'è)."""
+    path = store_path(cfg_news, project_root)
+    try:
+        saved = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+    except OSError:
+        return pd.DataFrame(columns=COLUMNS), None
+    return NewsStore(path, keep_days=float((cfg_news or {}).get("keep_days", 3))).frame(), saved
+
+
 def build_feed(cfg: dict, project_root: Path | str, start: bool = True, **kwargs) -> NewsFeed:
     """NewsFeed dalla configurazione (sezione news); memoria in `news.cache_dir` (relativa al progetto)."""
     n = cfg.get("news") or {}
-    cache = Path(n.get("cache_dir", "data/cache/news"))
-    if not cache.is_absolute():
-        cache = Path(project_root) / cache
-    store = NewsStore(cache / "notizie.json", keep_days=float(n.get("keep_days", 3)),
+    store = NewsStore(store_path(n, project_root), keep_days=float(n.get("keep_days", 3)),
                       similarity=float(n.get("similarity", 0.92)))
     feed = NewsFeed(general_feeds(n), store, pause=float(n.get("pause_seconds", 1.0)),
                     timeout=float(n.get("timeout_seconds", 15)), max_backoff=float(n.get("max_backoff_seconds", 3600)),
@@ -681,8 +716,8 @@ def x_timeline_html(user: str, dark: bool = True, height: int = 600) -> str:
     if u is None:
         raise ValueError(f"nome utente X non valido: {user!r}")
     theme = "dark" if dark else "light"
-    bg, fg = ("#000", "#ffa028") if dark else ("#fff", "#2a78d6")
-    return (f'<html><body style="margin:0;background:{bg};font:13px ui-monospace,Menlo,monospace">'
+    bg, fg = ("#1c1c1e", "#0a84ff") if dark else ("#ffffff", "#0071e3")
+    return (f'<html><body style="margin:0;background:{bg};font:14px -apple-system,system-ui,sans-serif">'
             f'<a class="twitter-timeline" data-theme="{theme}" data-height="{int(height)}" data-dnt="true" '
             f'data-chrome="noborders transparent" href="https://twitter.com/{u}?ref_src=twsrc%5Etfw" target="_blank" '
             f'rel="noopener" style="color:{fg}">Post di @{u} su X (se il riquadro non compare, apri il profilo)</a>'
