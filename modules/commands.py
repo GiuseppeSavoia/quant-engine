@@ -19,23 +19,24 @@ from dataclasses import dataclass, field
 
 # pagina (url_path di app.py) -> parole che la aprono (niente sigle di una lettera: sono ticker, es. A, D, T)
 PAGES: dict[str, tuple[str, ...]] = {
-    "": ("OGGI", "MONITOR", "MON", "HOME", "BLP", "LAUNCHPAD"),
-    "mie-aziende": ("MIE", "WATCH", "LISTA"),
-    "pipeline": ("PIPELINE", "PIPE", "IDEE"),
+    "": ("OGGI", "MONITOR", "MON", "HOME", "BLP", "LAUNCHPAD", "TODAY"),
+    "mie-aziende": ("MIE", "WATCH", "LISTA", "WATCHLIST", "MINE"),
+    "pipeline": ("PIPELINE", "PIPE", "IDEE", "IDEAS"),
     "notizie": ("NOTIZIE", "NEWS", "TOP", "CN", "8K", "8-K"),
-    "azienda": ("SCHEDA",),
-    "portafoglio": ("PORT", "PORTAFOGLIO", "PRT"),
-    "diario": ("DIARIO", "JOURNAL", "DECISIONI"),
-    "esplora": ("ESPLORA", "EQS", "SCREEN", "FILTRI"),
-    "confronta": ("CONFRONTA", "CMP", "COMP"),
-    "fondi": ("FONDI", "13F", "INVESTITORI", "GURU"),
-    "metodo": ("METODO", "CHECKLIST"),
-    "dati": ("DATI", "INSERISCI"),
-    "strategie": ("STRATEGIE", "STRAT", "STR"),
-    "strategia-automatica": ("AUTO", "AUTOMATICA", "ORDINI"),
-    "backtest": ("BACKTEST", "BT", "RICERCA"),
-    "laboratorio": ("LAB", "LABORATORIO"),
-    "qualita": ("QUALITA", "QUALITÀ", "DQ", "DEPOSITI", "SEC"),
+    "azienda": ("SCHEDA", "COMPANY"),
+    "portafoglio": ("PORT", "PORTAFOGLIO", "PRT", "PORTFOLIO"),
+    "diario": ("DIARIO", "JOURNAL", "DECISIONI", "DECISIONS"),
+    "esplora": ("ESPLORA", "EQS", "SCREEN", "FILTRI", "EXPLORE", "SCREENER"),
+    "confronta": ("CONFRONTA", "CMP", "COMP", "COMPARE"),
+    "fondi": ("FONDI", "13F", "INVESTITORI", "GURU", "FUNDS"),
+    "metodo": ("METODO", "CHECKLIST", "METHOD"),
+    "dati": ("DATI", "INSERISCI", "DATAENTRY"),
+    "strategie": ("STRATEGIE", "STRAT", "STR", "STRATEGIES"),
+    "strategia-automatica": ("AUTO", "AUTOMATICA", "ORDINI", "ORDERS"),
+    "backtest": ("BACKTEST", "BT", "RICERCA", "RESEARCH"),
+    "laboratorio": ("LAB", "LABORATORIO", "LABORATORY"),
+    "qualita": ("QUALITA", "QUALITÀ", "DQ", "DEPOSITI", "SEC", "QUALITY", "FILINGS"),
+    "limiti": ("LIMITI", "CAUTELE", "AVVERTENZE", "LIMITS", "CAVEATS", "DISCLAIMER"),
 }
 # funzioni della scheda azienda, nell'ordine del menu numerato (1 = DES...): codice -> nome
 FUNCTIONS: list[tuple[str, str]] = [
@@ -48,7 +49,11 @@ FUNCTIONS: list[tuple[str, str]] = [
 # le prime sei sono le voci principali della scheda, le altre stanno in "Altro")
 FUNCTION_ALIASES = {"INV": "TAV", "TAVOLO": "TAV", "INVESTITORI": "TAV", "STIME": "EE", "EST": "EE", "CONSENSO": "EE", "INS": "HDS", "OWN": "HDS", "DIV": "DVD", "PEER": "RV", "PEERS": "RV", "VAL": "DCF",
                     "BIL": "FA", "CN": "CF", "NEWS": "CF", "8K": "CF", "8-K": "CF",
-                    "PROVE": "PRV", "VERDETTO": "PRV", "GIUDIZIO": "PRV", "METRICHE": "DES", "PROFILO": "DES"}
+                    "PROVE": "PRV", "VERDETTO": "PRV", "GIUDIZIO": "PRV", "METRICHE": "DES", "PROFILO": "DES",
+                    # in inglese (interfaccia in inglese, 2026-11-24)
+                    "EVIDENCE": "PRV", "VERDICT": "PRV", "FIN": "FA", "CHART": "GP", "VALUATION": "DCF",
+                    "DOCS": "CF", "EARNINGS": "ERN", "QUARTERS": "ERN", "DIVIDENDS": "DVD", "INSIDERS": "HDS",
+                    "NOTES": "NOTE", "METRICS": "DES", "ESTIMATES": "EE", "INVESTORS": "TAV", "PANEL": "TAV"}
 FUNCTION_CODES = {code for code, _ in FUNCTIONS}
 HELP_WORDS = ("AIUTO", "HELP", "?", "COMANDI")
 FOLLOW_WORDS = {"SEGUI": True, "FOLLOW": True, "TOGLI": False, "UNFOLLOW": False}

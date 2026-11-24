@@ -30,12 +30,13 @@ SPECS: dict[str, tuple[str, str, str, str]] = {
     "backtest": ("backtest", "page_backtest", "Backtest e ricerca", ":material/science:"),
     "qualita": ("qualita", "page_quality", "Qualità dei dati", ":material/fact_check:"),
     "laboratorio": ("laboratorio", "page_lab", "Laboratorio", ":material/tune:"),
+    "limiti": ("limiti", "page_limits", "Metodo e limiti", ":material/info:"),
 }
 # menu in alto: due tendine
 MENU = {
     "Aziende": ["", "mie-aziende", "pipeline", "portafoglio", "diario", "azienda", "notizie", "esplora", "confronta", "fondi",
                 "metodo", "dati"],
-    "Strategie e ricerca": ["strategie", "strategia-automatica", "backtest", "laboratorio", "qualita"],
+    "Strategie e ricerca": ["strategie", "strategia-automatica", "backtest", "laboratorio", "qualita", "limiti"],
 }
 # tasti funzione: solo le 8 pagine del percorso principale "apro -> cerco -> capisco se comprare" (le altre stanno
 # nel menu in alto). Anche sulla tastiera: F1-F8 oppure Alt+1...8 (su Mac i tasti F chiedono fn), vedi shell._keyboard

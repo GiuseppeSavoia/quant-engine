@@ -1,11 +1,12 @@
 // Scheda azienda: testata con le azioni (segui, soglie, pipeline, esporta), giudizio con le prove, nota di onestà,
 // funzioni principali e "Altro" (trimestri, dividendi, insider e fondi, la mia ricerca, metriche, stime, automatica).
 import { CompanyActions } from "../components/CompanyActions";
+import { rememberCompany } from "../components/CommandPalette";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CompanyHead, VerdictCard } from "../components/verdict";
-import { Card, Empty, Notice, Segmented, Skeleton } from "../components/ui";
+import { Card, Empty, Skeleton } from "../components/ui";
 import { AutoPanel, DividendsPanel, EstimatesPanel, InvestorsPanel, MetricsPanel, OwnershipPanel, ResearchPanel } from "./CompanyMore";
 import { FinancialsPanel } from "./Financials";
 import { DocumentsPanel, PeersPanel } from "./PeersDocs";
@@ -13,6 +14,7 @@ import { PricePanel } from "./PricePanel";
 import { ValuationPanel } from "./Valuation";
 import { api, ApiError, type Company as CompanyData, type Evidence, type StatementsView } from "../lib/api";
 import { fmt } from "../lib/fmt";
+import { t, tn } from "../lib/i18n";
 
 const OUTCOME: Record<string, [string, string]> = {
   favorevole: ["✓", "pos"], neutro: ["●", "neutral"], contrario: ["✗", "neg"], mancante: ["–", "off"],
@@ -22,7 +24,7 @@ function EvidenceTable({ rows }: { rows: Evidence[] }) {
   return (
     <div className="table-wrap">
       <table className="dense">
-        <thead><tr><th>Prova</th><th className="n">Valore</th><th>Riferimento</th><th>Esito</th></tr></thead>
+        <thead><tr><th>{t("Prova")}</th><th className="n">{t("Valore")}</th><th>{t("Riferimento")}</th><th>{t("Esito")}</th></tr></thead>
         <tbody>
           {rows.map((e) => {
             const [sym, tone] = OUTCOME[e.outcome] ?? ["●", "neutral"];
@@ -31,7 +33,7 @@ function EvidenceTable({ rows }: { rows: Evidence[] }) {
                 <td>{e.label}</td>
                 <td className="n">{e.shown || "–"}</td>
                 <td className="wrap">{e.reference}</td>
-                <td className={tone}>{sym} {e.outcome}</td>
+                <td className={tone}>{sym} {t(e.outcome)}</td>
               </tr>
             );
           })}
@@ -57,6 +59,7 @@ export function CompanyPage() {
   const { ticker = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const more: More | undefined = MORE_FUNCTIONS.find((f) => f.value === params.get("fn"))?.value;
+  const moreRef = useRef<HTMLDetailsElement>(null);
   const fn: Fn | null = more ? null : FUNCTIONS.find((f) => f.value === params.get("fn"))?.value ?? "prove";
   const periodo = params.get("periodo") as StatementsView | null;
   const view: StatementsView = periodo && STATEMENT_VIEWS.includes(periodo) ? periodo : "annual";
@@ -66,16 +69,17 @@ export function CompanyPage() {
     enabled: !!ticker,
     retry: (n, err) => !(err instanceof ApiError && err.status === 404) && n < 2,
   });
-  const t = q.data?.header.ticker;
+  const tk = q.data?.header.ticker;
   useEffect(() => {
-    if (t) {
-      document.title = `${t} · QuantEngine`;
-      try { localStorage.setItem("qe_ultima_azienda", t); } catch { /* niente archiviazione */ }
+    if (tk) {
+      document.title = `${tk} · QuantEngine`;
+      try { localStorage.setItem("qe_ultima_azienda", tk); } catch { /* niente archiviazione */ }
+      rememberCompany(tk);
     }
-  }, [t]);
+  }, [tk]);
 
   if (!ticker) {
-    return <div className="page"><Empty what="Nessuna azienda aperta" why="Cerca un'azienda nella barra in alto (tasto /) o sceglila dall'elenco." /></div>;
+    return <div className="page"><Empty what={t("Nessuna azienda aperta")} why={t("Cerca un'azienda nella barra in alto (tasto /) o sceglila dall'elenco.")} /></div>;
   }
   if (q.isPending) {
     return <div className="page" aria-busy="true"><Skeleton height={150} /><Skeleton height={260} /></div>;
@@ -84,9 +88,9 @@ export function CompanyPage() {
     const notFound = q.error instanceof ApiError && q.error.status === 404;
     return (
       <div className="page">
-        <Empty what={notFound ? `Azienda non trovata: ${ticker}` : "Scheda non disponibile"}
-          why={notFound ? "Controlla il ticker o cercala per nome." : String(q.error.message)}>
-          <p><Link to="/">Torna all'elenco delle aziende</Link></p>
+        <Empty what={notFound ? t("Azienda non trovata: {ticker}", { ticker }) : t("Scheda non disponibile")}
+          why={notFound ? t("Controlla il ticker o cercala per nome.") : String(q.error.message)}>
+          <p><Link to="/">{t("Torna all'elenco delle aziende")}</Link></p>
         </Empty>
       </div>
     );
@@ -94,24 +98,25 @@ export function CompanyPage() {
   const { header, verdict, verdict_error } = q.data;
   return (
     <div className="page">
-      <CompanyHead h={header} />
-      <CompanyActions h={header} />
+      <CompanyHead h={header} actions={<CompanyActions h={header} />} />
       {verdict ? <VerdictCard v={verdict} /> : (
-        <Empty what="Giudizio non calcolato" why={verdict_error ?? "Mancano i dati per giudicare questa azienda."} />
+        <Empty what={t("Giudizio non calcolato")} why={verdict_error ?? t("Mancano i dati per giudicare questa azienda.")} />
       )}
-      <Notice tone="info">
-        Il giudizio riassume criteri fissi applicati ai dati: non è una raccomandazione. Nella prova sul passato le
-        aziende «Candidata all'acquisto» non hanno battuto l'indice.
-      </Notice>
-      <div className="row">
-        <Segmented label="Funzione della scheda" value={fn ?? ("" as Fn)} options={[...FUNCTIONS]}
-          onChange={(v) => setParams(v === "prove" ? {} : { fn: v }, { replace: true })} />
-        <select className={`select${more ? " on" : ""}`} value={more ?? ""} aria-label="Altre funzioni della scheda"
-          onChange={(e) => setParams(e.target.value ? { fn: e.target.value } : {}, { replace: true })}>
-          <option value="">Altro…</option>
-          {MORE_FUNCTIONS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
-      </div>
+      <nav className="segmented fn-tabs" aria-label={t("Funzioni della scheda")}>
+        {FUNCTIONS.map((f) => (
+          <button key={f.value} type="button" aria-pressed={fn === f.value}
+            onClick={() => setParams(f.value === "prove" ? {} : { fn: f.value }, { replace: true })}>{t(f.label)}</button>
+        ))}
+        <details className="dropdown fn-more" ref={moreRef}>
+          <summary aria-pressed={!!more}>{more ? t(MORE_FUNCTIONS.find((f) => f.value === more)?.label ?? "") : t("Altro")} <span aria-hidden="true">▾</span></summary>
+          <div className="menu">
+            {MORE_FUNCTIONS.map((f) => (
+              <button key={f.value} type="button" className={`menu-link${more === f.value ? " on" : ""}`}
+                onClick={() => { if (moreRef.current) moreRef.current.open = false; setParams({ fn: f.value }, { replace: true }); }}>{t(f.label)}</button>
+            ))}
+          </div>
+        </details>
+      </nav>
       {fn === "bilanci" && <FinancialsPanel ticker={header.ticker} view={view}
         onView={(v) => setParams(v === "annual" ? { fn: "bilanci" } : { fn: "bilanci", periodo: v }, { replace: true })} />}
       {fn === "grafico" && <PricePanel ticker={header.ticker} />}
@@ -129,7 +134,7 @@ export function CompanyPage() {
       {more === "investitori" && <InvestorsPanel ticker={header.ticker} />}
       {fn === "prove" && verdict && Object.values(verdict.pillars).map((p) => (
         <Card key={p.key} title={p.label}
-          right={`${p.score === null ? "dati insufficienti" : `${fmt(p.score, "score")} ${p.grade}`} · ${p.evidence.length - p.missing.length} prove su ${p.evidence.length}`}>
+          right={`${p.score === null ? t("dati insufficienti") : `${fmt(p.score, "score")} ${p.grade}`} · ${tn(p.evidence.length - p.missing.length, "{n} prova su {total}", "{n} prove su {total}", { total: p.evidence.length })}`}>
           <EvidenceTable rows={p.evidence} />
         </Card>
       ))}

@@ -1,0 +1,233 @@
+{
+ "functions": [
+  {
+   "code": "PRV",
+   "label": "Prove"
+  },
+  {
+   "code": "FA",
+   "label": "Bilanci"
+  },
+  {
+   "code": "GP",
+   "label": "Grafico"
+  },
+  {
+   "code": "DCF",
+   "label": "Valutazione"
+  },
+  {
+   "code": "RV",
+   "label": "Concorrenti"
+  },
+  {
+   "code": "CF",
+   "label": "Notizie e documenti"
+  },
+  {
+   "code": "ERN",
+   "label": "Trimestri"
+  },
+  {
+   "code": "DVD",
+   "label": "Dividendi e riacquisti"
+  },
+  {
+   "code": "HDS",
+   "label": "Insider e fondi"
+  },
+  {
+   "code": "NOTE",
+   "label": "La mia ricerca"
+  },
+  {
+   "code": "DES",
+   "label": "Tutte le metriche"
+  },
+  {
+   "code": "AUTO",
+   "label": "Strategia automatica (sperimentale)"
+  },
+  {
+   "code": "EE",
+   "label": "Stime degli analisti"
+  },
+  {
+   "code": "TAV",
+   "label": "Tavolo dei grandi investitori"
+  }
+ ],
+ "pages": [
+  {
+   "page": "",
+   "words": [
+    "OGGI",
+    "MONITOR",
+    "MON",
+    "HOME",
+    "BLP",
+    "LAUNCHPAD",
+    "TODAY"
+   ]
+  },
+  {
+   "page": "mie-aziende",
+   "words": [
+    "MIE",
+    "WATCH",
+    "LISTA",
+    "WATCHLIST",
+    "MINE"
+   ]
+  },
+  {
+   "page": "pipeline",
+   "words": [
+    "PIPELINE",
+    "PIPE",
+    "IDEE",
+    "IDEAS"
+   ]
+  },
+  {
+   "page": "notizie",
+   "words": [
+    "NOTIZIE",
+    "NEWS",
+    "TOP",
+    "CN",
+    "8K",
+    "8-K"
+   ]
+  },
+  {
+   "page": "azienda",
+   "words": [
+    "SCHEDA",
+    "COMPANY"
+   ]
+  },
+  {
+   "page": "portafoglio",
+   "words": [
+    "PORT",
+    "PORTAFOGLIO",
+    "PRT",
+    "PORTFOLIO"
+   ]
+  },
+  {
+   "page": "diario",
+   "words": [
+    "DIARIO",
+    "JOURNAL",
+    "DECISIONI",
+    "DECISIONS"
+   ]
+  },
+  {
+   "page": "esplora",
+   "words": [
+    "ESPLORA",
+    "EQS",
+    "SCREEN",
+    "FILTRI",
+    "EXPLORE",
+    "SCREENER"
+   ]
+  },
+  {
+   "page": "confronta",
+   "words": [
+    "CONFRONTA",
+    "CMP",
+    "COMP",
+    "COMPARE"
+   ]
+  },
+  {
+   "page": "fondi",
+   "words": [
+    "FONDI",
+    "13F",
+    "INVESTITORI",
+    "GURU",
+    "FUNDS"
+   ]
+  },
+  {
+   "page": "metodo",
+   "words": [
+    "METODO",
+    "CHECKLIST",
+    "METHOD"
+   ]
+  },
+  {
+   "page": "dati",
+   "words": [
+    "DATI",
+    "INSERISCI",
+    "DATAENTRY"
+   ]
+  },
+  {
+   "page": "strategie",
+   "words": [
+    "STRATEGIE",
+    "STRAT",
+    "STR",
+    "STRATEGIES"
+   ]
+  },
+  {
+   "page": "strategia-automatica",
+   "words": [
+    "AUTO",
+    "AUTOMATICA",
+    "ORDINI",
+    "ORDERS"
+   ]
+  },
+  {
+   "page": "backtest",
+   "words": [
+    "BACKTEST",
+    "BT",
+    "RICERCA",
+    "RESEARCH"
+   ]
+  },
+  {
+   "page": "laboratorio",
+   "words": [
+    "LAB",
+    "LABORATORIO",
+    "LABORATORY"
+   ]
+  },
+  {
+   "page": "qualita",
+   "words": [
+    "QUALITA",
+    "QUALITÀ",
+    "DQ",
+    "DEPOSITI",
+    "SEC",
+    "QUALITY",
+    "FILINGS"
+   ]
+  },
+  {
+   "page": "limiti",
+   "words": [
+    "LIMITI",
+    "CAUTELE",
+    "AVVERTENZE",
+    "LIMITS",
+    "CAVEATS",
+    "DISCLAIMER"
+   ]
+  }
+ ]
+}

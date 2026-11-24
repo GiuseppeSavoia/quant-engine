@@ -6,6 +6,7 @@ import { PeriodChart } from "../components/charts";
 import { Card, Empty, Segmented, Skeleton } from "../components/ui";
 import { api, type Statements, type StatementsView } from "../lib/api";
 import { fmt } from "../lib/fmt";
+import { t } from "../lib/i18n";
 
 function cell(v: number | null, kind: Statements["rows"][number]["kind"]): string {
   if (kind === "pct") return fmt(v, "pct");
@@ -20,18 +21,18 @@ export function FinancialsPanel({ ticker, view, onView }: { ticker: string; view
     queryFn: () => api<Statements>(`/companies/${encodeURIComponent(ticker)}/financials?view=${view}`),
     placeholderData: keepPreviousData,
   });
-  const views = q.data?.views ?? [{ value: "annual", label: "Esercizi" }, { value: "quarterly_ttm", label: "Ultimi 12 mesi a ogni trimestre" },
-    { value: "quarterly_single", label: "Trimestri singoli" }];
+  const views = q.data?.views ?? [{ value: "annual", label: t("Esercizi") }, { value: "quarterly_ttm", label: t("Ultimi 12 mesi a ogni trimestre") },
+    { value: "quarterly_single", label: t("Trimestri singoli") }];
   const head = (
     <div className="toolbar">
-      <Segmented label="Periodo" value={view} onChange={onView} options={views as { value: StatementsView; label: string }[]} />
-      {q.isFetching && !q.isPending && <span className="honest">aggiorno…</span>}
+      <Segmented label={t("Periodo")} value={view} onChange={onView} options={views as { value: StatementsView; label: string }[]} />
+      {q.isFetching && !q.isPending && <span className="honest">{t("aggiorno…")}</span>}
     </div>
   );
   if (q.isPending) return <>{head}<Skeleton height={300} /></>;
-  if (q.isError) return <>{head}<Empty what="Bilanci non disponibili" why={q.error.message} /></>;
+  if (q.isError) return <>{head}<Empty what={t("Bilanci non disponibili")} why={q.error.message} /></>;
   const s = q.data;
-  if (s.empty) return <>{head}<Empty what={view === "quarterly_single" ? "Nessun trimestre singolo per questa azienda" : "Nessun bilancio per questa azienda"} why={s.why} /></>;
+  if (s.empty) return <>{head}<Empty what={view === "quarterly_single" ? t("Nessun trimestre singolo per questa azienda") : t("Nessun bilancio per questa azienda")} why={s.why} /></>;
   const labels = s.periods.map((p) => p.label);
   const shown = s.periods.slice(s.table_from);
   return (
@@ -45,19 +46,19 @@ export function FinancialsPanel({ ticker, view, onView }: { ticker: string; view
         ))}
       </div>
       {s.shares && (
-        <Card title="Azioni in circolazione" right="asse da zero, milioni">
+        <Card title={t("Azioni in circolazione")} right={t("asse da zero, milioni")}>
           {s.shares.summary && <p className="lead" style={{ marginBottom: 8 }}>{s.shares.summary[0].toUpperCase() + s.shares.summary.slice(1)}.</p>}
-          <PeriodChart title="Azioni in circolazione" labels={labels} kind="shares" height={180}
-            series={[{ key: "shares", label: "Azioni", values: s.shares.values }]} />
-          <p className="honest">Scendono con i riacquisti, salgono con aumenti di capitale e piani azionari. L'asse parte da zero: un calo dell'1% resta un calo dell'1%.</p>
+          <PeriodChart title={t("Azioni in circolazione")} labels={labels} kind="shares" height={180}
+            series={[{ key: "shares", label: t("Azioni"), values: s.shares.values }]} />
+          <p className="honest">{t("Scendono con i riacquisti, salgono con aumenti di capitale e piani azionari. L'asse parte da zero: un calo dell'1% resta un calo dell'1%.")}</p>
         </Card>
       )}
-      <Card title="Le voci" right={`milioni di ${s.currency}, salvo dove indicato · ultima versione depositata`}>
+      <Card title={t("Le voci")} right={t("milioni di {currency}, salvo dove indicato · ultima versione depositata", { currency: s.currency })}>
         <div className="table-wrap">
           <table className="dense statements">
             <thead>
               <tr>
-                <th>Voce</th>
+                <th>{t("Voce")}</th>
                 {shown.map((p) => (
                   <th key={p.label} className="n" title={p.link?.title ?? p.label}>
                     {p.link ? <a href={p.link.url} target="_blank" rel="noopener noreferrer">{p.label} ↗</a> : p.label}
@@ -85,7 +86,7 @@ export function FinancialsPanel({ ticker, view, onView }: { ticker: string; view
         </div>
         {Object.keys(s.marks).length > 0 && (
           <p className="honest">
-            {Object.values(s.marks).map((m) => `${m.symbol} ${m.why.toLowerCase()}`).join(" · ")}. I margini e i rapporti calcolati da questi valori ne ereditano i limiti.
+            {Object.values(s.marks).map((m) => `${m.symbol} ${m.why.toLowerCase()}`).join(" · ")}. {t("I margini e i rapporti calcolati da questi valori ne ereditano i limiti.")}
           </p>
         )}
         <p className="honest">{s.note}</p>

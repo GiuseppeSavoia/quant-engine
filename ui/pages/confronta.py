@@ -56,7 +56,7 @@ def _verdict_html(d, tickers: list[str]) -> str:
     rows.append(_row("Azienda", [html.escape(str(d.info(t).get("name") or "")) for t in tickers], align="t"))
     rows.append(_row("Giudizio", [verdict_badge(v.at[t, "category"], v.at[t, "verdict"])
                                   if isinstance(v.at[t, "category"], str) else na_html() for t in tickers],
-                     align="t", title="Sintesi dei criteri impostati, non una raccomandazione"))
+                     align="t", title="Sintesi dei criteri fissi della scheda"))
     for key, label in PILLAR_ROWS:
         cells = []
         for t in tickers:
@@ -127,7 +127,7 @@ def page_compare():
                     "Dalla barra dei comandi: CMP AAPL MSFT.")
         return
 
-    with panel("Giudizio", right="sintesi dei criteri · non è una raccomandazione"):
+    with panel("Giudizio", right="sintesi dei criteri della scheda"):
         st.html(_verdict_html(d, tickers))
         verdict_note()
 

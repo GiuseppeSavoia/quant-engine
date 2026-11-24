@@ -267,12 +267,10 @@ from modules.alerts import ALERT_PRIORITY, PRICE_MOVES  # noqa: E402 - una sola 
 
 
 def _empty_mine():
-    empty_state("Non segui ancora nessuna azienda",
-                "Scrivi SEGUI e il ticker nella barra dei comandi in alto (per esempio SEGUI AAPL), oppure apri una "
-                "scheda e premi Segui. Qui vedrai prezzo, variazione, il tuo margine sul fair value e il verdetto.")
-    st.html('<div class="qe-links"><a href="./esplora" target="_self">Esplora: filtri e ricerche pronte '
-            '(Qualità a prezzo giusto, Dividendi solidi…) ›</a>'
-            '<a href="./azienda" target="_self">Apri una scheda ›</a></div>')
+    from ui.common import data
+    from ui.rules import get_started
+
+    get_started(data(), key="mon_start")
 
 
 def _alerts_panel(d: DashboardData) -> dict[str, int]:
@@ -542,8 +540,7 @@ def page_monitor():
                 table = my_companies_table(d, q, mine, verdicts, fair, buy, held, unseen, one_year)
                 dense_table(table, visible_columns(table), max_rows=40, titles={"category": "rule"})
                 st.html('<div class="qe-mine-note">Seguite, in portafoglio (ptf) e con una soglia di prezzo. Margine '
-                        'FV = il tuo fair value contro il prezzo; Compra sotto = la tua soglia e quanto manca. Il '
-                        'verdetto è una sintesi dei criteri, non una raccomandazione.</div>')
+                        'FV = il tuo fair value contro il prezzo; Compra sotto = la tua soglia e quanto manca.</div>')
 
         my_companies()
 

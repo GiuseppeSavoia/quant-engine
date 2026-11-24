@@ -11,16 +11,19 @@ Regole:
 """
 from __future__ import annotations
 
+import json
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, model_validator
 
 from api.serialize import jsonable
+from modules import i18n
 from modules.app_context import ContextCache
 from modules.jobs import JobRunner
 from modules.dashboard_data import DashboardData
@@ -240,10 +243,35 @@ def create_app(config_path: str | None = None, demo: bool = False, preload: bool
     app.state.demo = demo
     app.state.jobs = jobs or JobRunner()  # backtest in sottofondo, uno alla volta
 
+    @app.middleware("http")
+    async def english(request: Request, call_next):
+        """Lingua dell'interfaccia (intestazione X-Lang o ?lang=): con "en" i testi del motore nelle risposte JSON
+        si traducono all'uscita (modules/i18n); dati salvati, chiavi e codici restano in italiano."""
+        lang = i18n.normalize(request.headers.get("x-lang") or request.query_params.get("lang"))
+        response = await call_next(request)
+        if lang == "it" or not request.url.path.startswith(API_PREFIX) \
+                or "application/json" not in response.headers.get("content-type", ""):
+            return response
+        body = b"".join([chunk async for chunk in response.body_iterator])
+        path = request.url.path
+        skip = i18n.NEWS_SKIP if path.startswith(f"{API_PREFIX}/news") or path.endswith("/documents") else frozenset()
+        data = await run_in_threadpool(lambda: i18n.translate_obj(json.loads(body), lang, skip=skip))
+        headers = {k: v for k, v in response.headers.items() if k.lower() not in ("content-length", "content-type")}
+        return JSONResponse(data, status_code=response.status_code, headers=headers)
+
     @app.get(f"{API_PREFIX}/health")
     def health(request: Request) -> dict:
         cache = request.app.state.contexts
-        return {"ok": cache.db_path.exists(), "demo": demo, "database": cache.db_path.name}
+        last_run = None
+        if cache.db_path.exists():
+            from data.db_manager import DBManager
+
+            rid = DBManager(cache.db_path).last_run_id()
+            try:
+                last_run = time.strftime("%Y-%m-%dT%H:%M:%S", time.strptime(rid, "%Y%m%d_%H%M%S")) if rid else None
+            except ValueError:
+                last_run = None
+        return {"ok": cache.db_path.exists(), "demo": demo, "database": cache.db_path.name, "last_update": last_run}
 
     @app.get(f"{API_PREFIX}/companies")
     def companies(d: Ctx, q: Annotated[str, Query(max_length=60)] = "", limit: Annotated[int, Query(ge=1, le=200)] = 20):
@@ -667,6 +695,22 @@ def create_app(config_path: str | None = None, demo: bool = False, preload: bool
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         return jsonable(d.company_research(t))
+
+    @app.get(f"{API_PREFIX}/market-strip")
+    def market_strip(d: Ctx, user: User):  # noqa: ARG001
+        """Striscia di mercato dalle chiusure salvate (nessuna quotazione dal vivo)."""
+        return jsonable(d.market_strip())
+
+    @app.get(f"{API_PREFIX}/command")
+    def command(d: Ctx, user: User, q: Annotated[str, Query(max_length=200)] = ""):  # noqa: ARG001
+        """La barra dei comandi della scheda (modules/commands.py: "MSFT FA", "AAPL MSFT", "SEGUI KO", "ESPLORA"...):
+        cosa aprire. Il web traduce pagina e funzione nei suoi indirizzi; niente regole duplicate nel browser."""
+        from modules import commands
+
+        names = {t: str(d.info(t).get("name") or "") for t in d.tickers}
+        c = commands.parse(q, list(d.tickers), names)
+        return {"page": c.page, "tickers": c.tickers, "follow": c.follow, "section": c.section, "help": c.help,
+                "error": c.error, "names": {t: names.get(t, "") for t in c.tickers}}
 
     @app.get(f"{API_PREFIX}/companies/{{ticker}}/investors")
     def company_investors(ticker: str, d: Ctx, user: User):  # noqa: ARG001

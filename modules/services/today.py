@@ -164,8 +164,10 @@ class TodayService(Service):
                          "held": t in held, "unseen": int(unseen.get(t, 0)),
                          "_order": ORDER.index(cat) if cat in ORDER else len(ORDER)})
         rows.sort(key=lambda r: (-r["unseen"], r["_order"], r["ticker"]))
+        spark = ctx.sparklines([r["ticker"] for r in rows])
         for r in rows:
             r.pop("_order")
+            r["spark"] = spark.get(r["ticker"])
         idx = q[q.index.isin(ctx.index_tickers)].dropna(subset=["change_pct"]).sort_values("change_pct") \
             if not q.empty else q
         mover = lambda part: [{"ticker": t, "name": ctx.info(t).get("name") or "", "last": r["last"],  # noqa: E731
@@ -183,3 +185,63 @@ class TodayService(Service):
             "insiders": self._insiders(), "insiders_loaded": self.data.insiders is not None and not self.data.insiders.empty,
             "exchanges": self._exchanges(),
         }
+
+    # ------------------------------------------------------------------ minigrafici e striscia di mercato
+    def sparklines(self, tickers: list[str], weeks: int = 52) -> dict[str, list]:
+        """Chiusure dell'ultimo anno, una a settimana (l'ultima sempre compresa), per i minigrafici delle tabelle."""
+        close = self.data.close
+        out: dict[str, list] = {}
+        for t in dict.fromkeys(tickers):
+            if t not in close:
+                continue
+            s = close[t].dropna()
+            if len(s) < 10:
+                continue
+            s = s[s.index >= s.index[-1] - pd.Timedelta(days=365)]
+            pts = s.iloc[::5]
+            if pts.index[-1] != s.index[-1]:
+                pts = pd.concat([pts, s.iloc[-1:]])
+            out[t] = [round(float(v), 4) for v in pts.iloc[-(weeks + 1):]]
+        return out
+
+    def market_strip(self) -> dict:
+        """Striscia di mercato dai soli prezzi salvati (nessuna quotazione dal vivo): S&P 500 (SPY), l'indice a pesi
+        uguali dei membri, il tasso USA a 10 anni, quanti titoli sono saliti nell'ultima seduta e nuovi massimi/minimi a
+        52 settimane, più Euro Stoxx 50 ed euro/dollaro se scaricati."""
+        close = self.data.close
+        members = [t for t in self.ctx.index_tickers if t in close]
+        items = []
+
+        def series_item(key, label, s, kind="price", rate=False):
+            s = s.dropna()
+            if len(s) < 3:
+                return
+            year = s[s.index >= s.index[-1] - pd.Timedelta(days=365)]
+            chg = float(s.iloc[-1] - s.iloc[-2]) * 100 if rate else float(s.iloc[-1] / s.iloc[-2] - 1)
+            items.append({"key": key, "label": label, "value": float(s.iloc[-1]) / (100 if rate else 1), "kind": kind,
+                          "change": chg, "change_kind": "bp" if rate else "pct",
+                          "change_1y": None if rate or len(year) < 2 else float(year.iloc[-1] / year.iloc[0] - 1),
+                          "spark": [round(float(v), 4) for v in year.iloc[::5]] + [round(float(year.iloc[-1]), 4)]})
+
+        if "SPY" in close:
+            series_item("SPY", "S&P 500 (SPY)", close["SPY"])
+        if members:
+            recent = close[members].iloc[-260:]
+            ew = (1 + recent.pct_change(fill_method=None).mean(axis=1, skipna=True).fillna(0)).cumprod() * 100
+            series_item("EW", "S&P 500 a pesi uguali", ew, kind="num")
+            last = close[members].iloc[-2:]
+            moved = (last.iloc[-1] / last.iloc[-2] - 1).dropna()
+            year = close[members].iloc[-252:]
+            highs = int((year.iloc[-1] >= year.max() * 0.9999).sum())
+            lows = int((year.iloc[-1] <= year.min() * 1.0001).sum())
+            if len(moved):
+                items.append({"key": "BREADTH", "label": "Titoli in salita", "value": float((moved > 0).mean()), "kind": "pct",
+                              "detail": f"{int((moved > 0).sum())} su {len(moved)}", "highs": highs, "lows": lows,
+                              "change": None, "spark": None})
+        if "^TNX" in close:
+            series_item("TNX", "Tasso USA 10 anni", close["^TNX"], kind="pct", rate=True)
+        if "^STOXX50E" in close:
+            series_item("SX5E", "Euro Stoxx 50", close["^STOXX50E"], kind="num")
+        if "EURUSD=X" in close:
+            series_item("EURUSD", "Euro / dollaro", close["EURUSD=X"], kind="num")
+        return {"as_of": self.data.last_date, "items": items}

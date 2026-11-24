@@ -138,6 +138,12 @@ HONEST_LONG = [
 ]
 
 
+def limits_link_html() -> str:
+    """Una riga sotto il giudizio (le cautele intere stanno nella pagina Metodo e limiti)."""
+    return ('<div class="qe-honest">Criteri fissi applicati ai dati, non un segnale provato: '
+            '<a href="./limiti" target="_self">come funziona e limiti ›</a></div>')
+
+
 def honesty_html() -> str:
     body = "".join(f"<p>{html.escape(p)}</p>" for p in HONEST_LONG)
     return (f'<details class="qe-honest"><summary><b>i</b> {html.escape(HONEST_SHORT)}<span>quanto è affidabile?'
@@ -175,7 +181,7 @@ def threshold_html(v) -> str:
 
 def render_verdict(v, value: str = "") -> None:
     """Riquadro del Verdetto + nota di onestà + "Perché?" (prove di ogni pilastro, mancanti in fondo)."""
-    st.html(VERDETTO_CSS + verdict_card_html(v, value_html=value) + honesty_html())
+    st.html(VERDETTO_CSS + verdict_card_html(v, value_html=value) + limits_link_html())
     pillars = [p for p in (v.pillars or {}).values()]
     with st.expander("Perché? Le prove di ogni pilastro"):
         tabs = st.tabs([_tab_label(p) for p in pillars])
@@ -355,5 +361,5 @@ def verdict_error_box(ticker: str) -> None:
 
 
 __all__ = ["assess", "what_changed", "price_target", "targets_html", "targets_form", "render_verdict",
-           "render_changes", "render_alerts", "render_evidence", "verdict_error_box", "value_html", "honesty_html",
+           "render_changes", "render_alerts", "render_evidence", "verdict_error_box", "value_html", "honesty_html", "limits_link_html",
            "data_key"]

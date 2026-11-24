@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import { Empty } from "./components/ui";
+import { t } from "./lib/i18n";
 import { CatalogPage } from "./pages/Catalog";
 import { CompaniesPage } from "./pages/Companies";
 import { CompanyPage } from "./pages/Company";
@@ -15,6 +16,7 @@ import { FundsPage } from "./pages/Funds";
 import { QualityPage } from "./pages/Quality";
 import { DataEntryPage } from "./pages/DataEntry";
 import { AutoStrategyPage } from "./pages/AutoStrategy";
+import { LimitsPage } from "./pages/Limits";
 import { PipelinePage } from "./pages/Pipeline";
 import { StrategiesPage } from "./pages/Strategies";
 import { PortfolioPageView } from "./pages/Portfolio";
@@ -44,9 +46,10 @@ export function App() {
         <Route path="/qualita" element={<QualityPage />} />
         <Route path="/inserisci-dati" element={<DataEntryPage />} />
         <Route path="/strategia-automatica" element={<AutoStrategyPage />} />
+        <Route path="/limiti" element={<LimitsPage />} />
         <Route path="/componenti" element={<CatalogPage />} />
         <Route path="/index.html" element={<Navigate to="/" replace />} />
-        <Route path="*" element={<div className="page"><Empty what="Pagina inesistente" why="Usa il menu in alto." /></div>} />
+        <Route path="*" element={<div className="page"><Empty what={t("Pagina inesistente")} why={t("Usa il menu in alto.")} /></div>} />
       </Routes>
     </Shell>
   );

@@ -13,7 +13,7 @@ from ui.common import data, md
 from ui.components import (CURRENCY_SYMBOL, _ago, alert_badge, badge, empty_state, fmt, fmt_table, it_number, plural,
                            num_column, panel, table_height, ticker_link, verdict_badge)
 from ui.pages.confronta import MAX_COMPARE
-from ui.rules import PILLAR_HELP, PILLAR_SHORT, num_col, pillar_column, styled, verdict_note, verdict_table, verdict_text
+from ui.rules import get_started, PILLAR_HELP, PILLAR_SHORT, num_col, pillar_column, styled, verdict_note, verdict_table, verdict_text
 
 MAIN_PILLARS = ["quality", "solidity", "price", "flags"]
 # colonne facoltative (popover "Colonne"): chiave -> etichetta
@@ -127,26 +127,8 @@ def _follow_widgets(d, watch: list[str]):
 
 
 def _empty(d):
-    empty_state("Non segui ancora nessuna azienda",
-                "Qui trovi, per ogni azienda che segui, il giudizio sintetico, prezzo, margine sul tuo fair value e "
-                "sulla tua soglia d'acquisto, e gli avvisi (nuovi bilanci, prezzo sotto la soglia, movimenti forti, "
-                "margini in calo). Aggiungine con \"＋ Aggiungi o togli\" qui sopra, con \"☆ Segui\" nella scheda o "
-                "dalla barra dei comandi (SEGUI AAPL).")
-    v = verdict_table(d, list(d.index_tickers))
-    top = v[v["category"] == "candidata"].head(6) if not v.empty else v
-    if top.empty:
-        return
-    with panel("Per cominciare", right="le prime «Candidate» dell'S&P 500 per punteggio"):
-        verdict_note()
-        cols = st.columns(len(top))
-        for col, (t, r) in zip(cols, top.iterrows()):
-            with col:
-                st.html(f'<div>{ticker_link(t)} <span class="flat">{html.escape(str(r.get("name") or ""))}'
-                        f'</span></div>')
-                if st.button(f"☆ Segui {t}", key=f"home_start_{t}", width="stretch"):
-                    d.follow([t])
-                    st.toast(f"Ora segui {t}")
-                    st.rerun()
+    with panel("Per cominciare"):
+        get_started(d, key="home_start")
 
 
 from modules.alerts import ENGLISH_NUMBER_CODES, alert_message_it  # noqa: E402,F401
@@ -210,10 +192,11 @@ def _main_table(d, table: pd.DataFrame):
                                    format_func=EXTRA_COLUMNS.get, placeholder="Scegli le colonne")
         with top_l:
             verdict_note()
-        cols = ["ticker", "name", "verdict"] + [f"v_{p}" for p in MAIN_PILLARS] + \
+        cols = ["ticker", "name", "spark", "verdict"] + [f"v_{p}" for p in MAIN_PILLARS] + \
             ([] if one else ["currency"]) + ["price", "ret_1m", "ret_1y", "pe", "my_fair_value", "my_margin",
                                              "buy_below", "buy_margin"] + extra + ["alert_count"]
-        view = table.assign(verdict=table["category"].map(verdict_text))
+        sparks = d.sparklines(list(table["ticker"]))
+        view = table.assign(verdict=table["category"].map(verdict_text), spark=[sparks.get(t) for t in table["ticker"]])
         for c in ("ret_1m", "ret_1y", "my_margin", "buy_margin", "fcf_yield", "roic", "revenue_growth",
                   "dividend_yield", "coverage"):
             view[c] = view[c].astype(float).round(4) + 0.0
@@ -237,9 +220,9 @@ def _main_table(d, table: pd.DataFrame):
             key="home_table", height=table_height(len(view), 20),
             column_config={
                 "ticker": st.column_config.TextColumn("Ticker", pinned=True), "name": "Azienda",
+                "spark": st.column_config.LineChartColumn("1 anno", width="small"),
                 "verdict": st.column_config.TextColumn("Giudizio", help="Sintesi dei criteri (✓ Candidata, ◐ "
-                                                       "Aspettare, ● Neutra, ! Dubbia, ✗ Evitare, ? Dati insuff.): "
-                                                       "non è una raccomandazione."),
+                                                       "Aspettare, ● Neutra, ! Dubbia, ✗ Evitare, ? Dati insuff.)."),
                 **progress, "currency": "Valuta",
                 "price": num_col(f"Prezzo{unit}"),
                 "ret_1m": num_col("1 mese"), "ret_1y": num_col("1 anno"),

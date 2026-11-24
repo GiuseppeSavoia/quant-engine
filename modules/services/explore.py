@@ -125,10 +125,11 @@ class ExploreService(Service):
         currency = {t: ("USD" if u == "S&P 500" else ctx.currency(t)) for t, u in shown["universe"].items()} \
             if "universe" in shown else {t: ctx.currency(t) for t in shown.index}
         rows = []
+        spark = ctx.sparklines(list(shown.index))
         for t, r in shown.iterrows():
             rows.append({"ticker": t, "name": r.get("name"), "sector": r.get("sector"), "currency": currency.get(t),
                          "price": r.get("price"), "category": r.get("category"), "verdict": r.get("verdict"),
-                         "followed": bool(r.get("followed")), "my_margin": r.get("my_margin"),
+                         "followed": bool(r.get("followed")), "my_margin": r.get("my_margin"), "spark": spark.get(t),
                          **{f"pillar_{p}": r.get(f"pillar_{p}") for p in PILLARS},
                          "values": {c: (float(r[c]) if c in r and pd.notna(r[c]) and np.isfinite(float(r[c])) else None)
                                     for c in cols}})

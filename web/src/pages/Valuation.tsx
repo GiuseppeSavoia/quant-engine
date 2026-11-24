@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, Empty, Notice, Num, Skeleton } from "../components/ui";
 import { api, ApiError, type LeverMeta, type Valuation } from "../lib/api";
 import { fmt } from "../lib/fmt";
+import { t } from "../lib/i18n";
 
 type Draft = Record<string, Record<string, string>>;
 
@@ -53,22 +54,22 @@ function Tornado({ v }: { v: Valuation }) {
   const hi = Math.max(...vals);
   const pos = (x: number) => ((x - lo) / (hi - lo || 1)) * 100;
   return (
-    <div className="tornado" role="img" aria-label="Quanto cambia il valore muovendo una leva alla volta">
+    <div className="tornado" role="img" aria-label={t("Quanto cambia il valore muovendo una leva alla volta")}>
       {sim.swing.map((s) => (
         <div className="row" key={s.lever}>
           <span className="lab">{s.label}</span>
           <span className="track">
             {s.low !== null && <i className="to-low" style={{ left: `${Math.min(pos(s.low), pos(mid))}%`, width: `${Math.abs(pos(mid) - pos(s.low))}%` }}
-              title={`verso il pessimista: ${fmt(s.low, "price", { currency: v.currency })}`} />}
+              title={t("verso il pessimista: {price}", { price: fmt(s.low, "price", { currency: v.currency }) })} />}
             {s.high !== null && <i className="to-high" style={{ left: `${Math.min(pos(s.high), pos(mid))}%`, width: `${Math.abs(pos(s.high) - pos(mid))}%` }}
-              title={`verso l'ottimista: ${fmt(s.high, "price", { currency: v.currency })}`} />}
+              title={t("verso l'ottimista: {price}", { price: fmt(s.high, "price", { currency: v.currency }) })} />}
             <b style={{ left: `${pos(mid)}%` }} />
           </span>
           <span className="vals">{fmt(s.low, "price", { digits: 0 })} – {fmt(s.high, "price", { digits: 0 })}</span>
         </div>
       ))}
-      <div className="legend"><i className="to-low" /> verso il pessimista <i className="to-high" /> verso l'ottimista
-        <span>· linea = caso base {fmt(mid, "price", { currency: v.currency })}</span></div>
+      <div className="legend"><i className="to-low" /> {t("verso il pessimista")} <i className="to-high" /> {t("verso l'ottimista")}
+        <span>· {t("linea = caso base {price}", { price: fmt(mid, "price", { currency: v.currency }) })}</span></div>
     </div>
   );
 }
@@ -85,26 +86,25 @@ function Histogram({ v }: { v: Valuation }) {
   const price = v.price >= x0 && v.price <= x1 ? sx(v.price) : null;
   return (
     <figure className="hist">
-      <svg viewBox={`0 0 ${W} ${H + 18}`} role="img" aria-label="Distribuzione dei valori simulati">
+      <svg viewBox={`0 0 ${W} ${H + 18}`} role="img" aria-label={t("Distribuzione dei valori simulati")}>
         {h.counts.map((c, i) => {
           const x = sx(h.edges[i]);
           const w = Math.max(sx(h.edges[i + 1]) - x - 1, 1);
           const bh = (c / (max || 1)) * H;
           return (
             <rect key={i} x={x} y={H - bh} width={w} height={bh} rx={1.5} className={h.edges[i + 1] <= v.price ? "below" : "above"}>
-              <title>{`${fmt(h.edges[i], "price", { digits: 0 })} – ${fmt(h.edges[i + 1], "price", { digits: 0 })}: ${c} casi`}</title>
+              <title>{t("{from} – {to}: {n} casi", { from: fmt(h.edges[i], "price", { digits: 0 }), to: fmt(h.edges[i + 1], "price", { digits: 0 }), n: c })}</title>
             </rect>
           );
         })}
         {price !== null && <line x1={price} x2={price} y1={0} y2={H} className="price" />}
         <text x={0} y={H + 14} className="ax">{fmt(x0, "price", { digits: 0 })}</text>
         <text x={W} y={H + 14} className="ax" textAnchor="end">{fmt(x1, "price", { digits: 0, currency: v.currency })}</text>
-        {price !== null && <text x={price + 4} y={10} className="ax">prezzo</text>}
+        {price !== null && <text x={price + 4} y={10} className="ax">{t("prezzo")}</text>}
       </svg>
       <figcaption>
-        Nel {fmt(v.simulation?.prob_above_price, "pct", { digits: 0 })} dei {fmt(v.simulation?.n, "int")} casi il valore
-        supera il prezzo di oggi; mediana {fmt(v.simulation?.p50, "price", { digits: 0, currency: v.currency })}. Le leve
-        variano in modo indipendente: nella realtà crescita e margini spesso si muovono insieme.
+        {t("Nel {pct} dei {n} casi il valore supera il prezzo di oggi; mediana {median}. Le leve variano in modo indipendente: nella realtà crescita e margini spesso si muovono insieme.",
+          { pct: fmt(v.simulation?.prob_above_price, "pct", { digits: 0 }), n: fmt(v.simulation?.n, "int"), median: fmt(v.simulation?.p50, "price", { digits: 0, currency: v.currency }) })}
       </figcaption>
     </figure>
   );
@@ -178,8 +178,8 @@ export function ValuationPanel({ ticker }: { ticker: string }) {
 
   if (start.isPending || (start.data && draft === null)) return <Skeleton height={320} />;
   if (start.isError) {
-    const msg = start.error instanceof ApiError && start.error.status === 422 ? start.error.message : `Errore: ${start.error.message}`;
-    return <Empty what="Valutazione non disponibile" why={msg} />;
+    const msg = start.error instanceof ApiError && start.error.status === 422 ? start.error.message : t("Errore: {message}", { message: start.error.message });
+    return <Empty what={t("Valutazione non disponibile")} why={msg} />;
   }
   const v = edited && recalc.data ? recalc.data : start.data!;
   const cur = v.currency;
@@ -190,38 +190,38 @@ export function ValuationPanel({ ticker }: { ticker: string }) {
 
   return (
     <div className="valuation">
-      <Card title="Risultato della tua valutazione" className="result-card"
-        right={recalc.isFetching ? "ricalcolo…" : v.saved && !edited ? "riparte dall'ultima valutazione salvata" : "ipotesi di partenza dai bilanci"}>
+      <Card title={t("Risultato della tua valutazione")} className="result-card"
+        right={recalc.isFetching ? t("ricalcolo…") : v.saved && !edited ? t("riparte dall'ultima valutazione salvata") : t("ipotesi di partenza dai bilanci")}>
         <dl className="kv big">
-          <div><dt>Valore per azione</dt><dd>{fmt(v.expected, "price", { currency: cur })}</dd></div>
-          <div><dt>Margine sul prezzo</dt><dd><Num v={margin} kind="pct" change /></dd></div>
-          {v.simulation && <div><dt>Intervallo 10°–90°</dt><dd>{fmt(v.simulation.p10, "price", { digits: 0 })} – {fmt(v.simulation.p90, "price", { digits: 0, currency: cur })}</dd></div>}
-          {v.simulation && <div><dt>Sopra il prezzo</dt><dd>{fmt(v.simulation.prob_above_price, "pct", { digits: 0 })}</dd></div>}
+          <div><dt>{t("Valore per azione")}</dt><dd>{fmt(v.expected, "price", { currency: cur })}</dd></div>
+          <div><dt>{t("Margine sul prezzo")}</dt><dd><Num v={margin} kind="pct" change /></dd></div>
+          {v.simulation && <div><dt>{t("Intervallo 10°–90°")}</dt><dd>{fmt(v.simulation.p10, "price", { digits: 0 })} – {fmt(v.simulation.p90, "price", { digits: 0, currency: cur })}</dd></div>}
+          {v.simulation && <div><dt>{t("Sopra il prezzo")}</dt><dd>{fmt(v.simulation.prob_above_price, "pct", { digits: 0 })}</dd></div>}
           {scenarios.map((n) => (
-            <div key={n}><dt>{n} {fmt((v.probabilities[n] ?? 0) / total, "pct", { digits: 0 })}</dt><dd>{fmt(v.scenarios[n]?.per_share, "price", { currency: cur })}</dd></div>
+            <div key={n}><dt>{t(n)} {fmt((v.probabilities[n] ?? 0) / total, "pct", { digits: 0 })}</dt><dd>{fmt(v.scenarios[n]?.per_share, "price", { currency: cur })}</dd></div>
           ))}
-          <div><dt>Prezzo</dt><dd>{fmt(v.price, "price", { currency: cur })}</dd></div>
-          <div><dt>Crescita implicita</dt><dd>{fmt(v.implied_growth, "pct")}</dd></div>
+          <div><dt>{t("Prezzo")}</dt><dd>{fmt(v.price, "price", { currency: cur })}</dd></div>
+          <div><dt>{t("Crescita implicita")}</dt><dd>{fmt(v.implied_growth, "pct")}</dd></div>
         </dl>
         <p className="honest">
-          Valore = media dei tre scenari pesata con le probabilità; intervallo dalla simulazione. {v.notes.join(" ")}{" "}
-          {v.implied_growth !== null ? "Crescita implicita: crescita dei ricavi (anni 1-5) che giustifica il prezzo di oggi."
-            : "Crescita implicita: nessuna tra −10% e +60% giustifica il prezzo di oggi."}
+          {t("Valore = media dei tre scenari pesata con le probabilità; intervallo dalla simulazione.")} {v.notes.join(" ")}{" "}
+          {v.implied_growth !== null ? t("Crescita implicita: crescita dei ricavi (anni 1-5) che giustifica il prezzo di oggi.")
+            : t("Crescita implicita: nessuna tra −10% e +60% giustifica il prezzo di oggi.")}
         </p>
       </Card>
 
       {(invalid || recalc.isError || checks.length > 0) && (
         <div style={{ display: "grid", gap: 6 }}>
-          {invalid && <Notice tone="warn" title="Leve non valide:">ogni cella deve contenere un numero (probabilità non negative).</Notice>}
-          {recalc.isError && <Notice tone="neg" title="Ricalcolo non riuscito:">{recalc.error.message}</Notice>}
-          {checks.map((c, i) => <Notice key={i} tone={c.level === "errore" ? "neg" : "warn"} title={`${c.n}:`}>{c.message}</Notice>)}
+          {invalid && <Notice tone="warn" title={t("Leve non valide:")}>{t("ogni cella deve contenere un numero (probabilità non negative).")}</Notice>}
+          {recalc.isError && <Notice tone="neg" title={t("Ricalcolo non riuscito:")}>{recalc.error.message}</Notice>}
+          {checks.map((c, i) => <Notice key={i} tone={c.level === "errore" ? "neg" : "warn"} title={`${t(c.n)}:`}>{c.message}</Notice>)}
         </div>
       )}
 
-      <Card title="Le leve" right="percentuali in %, il resto come numero">
+      <Card title={t("Le leve")} right={t("percentuali in %, il resto come numero")}>
         <div className="table-wrap">
           <table className="dense levers">
-            <thead><tr><th>Leva</th>{scenarios.map((n) => <th key={n} className="n">{n}</th>)}</tr></thead>
+            <thead><tr><th>{t("Leva")}</th>{scenarios.map((n) => <th key={n} className="n">{t(n)}</th>)}</tr></thead>
             <tbody>
               {meta.map((m) => (
                 <tr key={m.key}>
@@ -230,7 +230,7 @@ export function ValuationPanel({ ticker }: { ticker: string }) {
                     const val = draft![n]?.[m.key] ?? "";
                     return (
                       <td key={n} className="n">
-                        <input inputMode="decimal" value={val} aria-label={`${m.label}, ${n}`} aria-invalid={parse(val) === null}
+                        <input inputMode="decimal" value={val} aria-label={`${m.label}, ${t(n)}`} aria-invalid={parse(val) === null}
                           onChange={(e) => setDraft((d) => ({ ...d!, [n]: { ...d![n], [m.key]: e.target.value } }))} />
                       </td>
                     );
@@ -238,10 +238,10 @@ export function ValuationPanel({ ticker }: { ticker: string }) {
                 </tr>
               ))}
               <tr className="probs">
-                <td>Probabilità (%)</td>
+                <td>{t("Probabilità (%)")}</td>
                 {scenarios.map((n) => (
                   <td key={n} className="n">
-                    <input inputMode="decimal" value={probs[n] ?? ""} aria-label={`Probabilità, ${n}`} aria-invalid={parse(probs[n] ?? "") === null}
+                    <input inputMode="decimal" value={probs[n] ?? ""} aria-label={t("Probabilità, {scenario}", { scenario: t(n) })} aria-invalid={parse(probs[n] ?? "") === null}
                       onChange={(e) => setProbs((p) => ({ ...p, [n]: e.target.value }))} />
                   </td>
                 ))}
@@ -251,26 +251,26 @@ export function ValuationPanel({ ticker }: { ticker: string }) {
         </div>
         <div className="actions">
           <button type="button" className="btn" onClick={() => { const d = draftFrom(start.data!); setDraft(d.levers); setProbs(d.probs); }}>
-            Torna alle ipotesi di partenza
+            {t("Torna alle ipotesi di partenza")}
           </button>
         </div>
         {v.setup_notes.length > 0 && <ul className="plain honest">{v.setup_notes.map((n) => <li key={n}>{n}</li>)}</ul>}
       </Card>
 
       <div className="grid-2">
-        <Card title="Leve che contano di più" right="una alla volta dal caso base">
+        <Card title={t("Leve che contano di più")} right={t("una alla volta dal caso base")}>
           <Tornado v={v} />
         </Card>
-        <Card title="Simulazione" right={v.simulation ? `${fmt(v.simulation.n, "int")} valutazioni` : undefined}>
-          {v.simulation ? <Histogram v={v} /> : <Empty what="Simulazione non disponibile" why="Servono i tre scenari." />}
+        <Card title={t("Simulazione")} right={v.simulation ? t("{n} valutazioni", { n: fmt(v.simulation.n, "int") }) : undefined}>
+          {v.simulation ? <Histogram v={v} /> : <Empty what={t("Simulazione non disponibile")} why={t("Servono i tre scenari.")} />}
         </Card>
       </div>
 
-      <Card title="È plausibile?" right="il caso base confrontato con le aziende dello stesso settore">
-        {v.plausibility.length === 0 ? <Empty what="Confronto non disponibile" why="Meno di 5 aziende dello stesso settore con dati sufficienti." /> : (
+      <Card title={t("È plausibile?")} right={t("il caso base confrontato con le aziende dello stesso settore")}>
+        {v.plausibility.length === 0 ? <Empty what={t("Confronto non disponibile")} why={t("Meno di 5 aziende dello stesso settore con dati sufficienti.")} /> : (
           <div className="table-wrap">
             <table className="dense">
-              <thead><tr><th>Leva</th><th className="n">La tua ipotesi</th><th className="n">Settore 10°</th><th className="n">Mediana</th><th className="n">Settore 90°</th><th className="n">Posizione</th><th>Giudizio</th></tr></thead>
+              <thead><tr><th>{t("Leva")}</th><th className="n">{t("La tua ipotesi")}</th><th className="n">{t("Settore 10°")}</th><th className="n">{t("Mediana")}</th><th className="n">{t("Settore 90°")}</th><th className="n">{t("Posizione")}</th><th>{t("Giudizio")}</th></tr></thead>
               <tbody>
                 {v.plausibility.map((r) => {
                   const k = r.kind === "num" ? "num" : "pct";
@@ -290,10 +290,10 @@ export function ValuationPanel({ ticker }: { ticker: string }) {
       </Card>
 
       <details className="card details">
-        <summary>Anno per anno (caso base)</summary>
+        <summary>{t("Anno per anno (caso base)")}</summary>
         <div className="table-wrap">
           <table className="dense">
-            <thead><tr><th>Anno</th><th className="n">Crescita</th><th className="n">Ricavi</th><th className="n">Margine</th><th className="n">EBIT</th><th className="n">Reinvestimento</th><th className="n">FCFF</th><th className="n">Costo cap.</th><th className="n">Valore attuale</th><th className="n">ROIC</th></tr></thead>
+            <thead><tr><th>{t("Anno")}</th><th className="n">{t("Crescita")}</th><th className="n">{t("Ricavi")}</th><th className="n">{t("Margine")}</th><th className="n">EBIT</th><th className="n">{t("Reinvestimento")}</th><th className="n">FCFF</th><th className="n">{t("Costo cap.")}</th><th className="n">{t("Valore attuale")}</th><th className="n">ROIC</th></tr></thead>
             <tbody>
               {v.year_table.map((r) => (
                 <tr key={String(r.anno)}>
@@ -306,21 +306,21 @@ export function ValuationPanel({ ticker }: { ticker: string }) {
             </tbody>
           </table>
         </div>
-        <p className="honest">Il {fmt(v.scenarios.Base?.terminal_share, "pct", { digits: 0 })} del valore viene dal valore finale (dopo il decimo anno).</p>
+        <p className="honest">{t("Il {pct} del valore viene dal valore finale (dopo il decimo anno).", { pct: fmt(v.scenarios.Base?.terminal_share, "pct", { digits: 0 }) })}</p>
       </details>
 
-      <Card title="Salva nel diario" right="aggiorna anche il tuo fair value">
+      <Card title={t("Salva nel diario")} right={t("aggiorna anche il tuo fair value")}>
         <label className="field">
-          <span>La storia dietro i numeri</span>
+          <span>{t("La storia dietro i numeri")}</span>
           <textarea rows={3} value={story} onChange={(e) => setStory(e.target.value)} maxLength={5000}
-            placeholder="Perché questa crescita, questo margine, questo rischio…" />
+            placeholder={t("Perché questa crescita, questo margine, questo rischio…")} />
         </label>
         <div className="actions">
           <button type="button" className="btn primary" disabled={invalid || save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? "Salvo…" : "Salva la valutazione"}
+            {save.isPending ? t("Salvo…") : t("Salva la valutazione")}
           </button>
-          {save.isSuccess && <span className="pos">Salvata: fair value {fmt(save.data.fair_value, "price", { currency: cur })}.</span>}
-          {save.isError && <span className="neg">Non salvata: {save.error.message}</span>}
+          {save.isSuccess && <span className="pos">{t("Salvata: fair value {price}.", { price: fmt(save.data.fair_value, "price", { currency: cur }) })}</span>}
+          {save.isError && <span className="neg">{t("Non salvata: {message}", { message: save.error.message })}</span>}
         </div>
       </Card>
     </div>

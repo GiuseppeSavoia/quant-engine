@@ -7,6 +7,7 @@ import { Card, Empty, Num, Skeleton } from "../components/ui";
 import { VerdictBadge } from "../components/verdict";
 import { api, type CompanyRow, type PipelineBoard, type PipelineCard } from "../lib/api";
 import { fmt } from "../lib/fmt";
+import { t } from "../lib/i18n";
 
 function AddForm({ board, onDone }: { board: PipelineBoard; onDone: () => void }) {
   const qc = useQueryClient();
@@ -23,35 +24,35 @@ function AddForm({ board, onDone }: { board: PipelineBoard; onDone: () => void }
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pipeline"] }); qc.invalidateQueries({ queryKey: ["company-pipeline", ticker] }); onDone(); },
   });
   return (
-    <Card title="Aggiungi o sposta un'azienda">
+    <Card title={t("Aggiungi o sposta un'azienda")}>
       <div className="form-grid">
-        <label className="field"><span>Azienda</span>
+        <label className="field"><span>{t("Azienda")}</span>
           {ticker ? (
-            <span className="chip">{ticker}<button type="button" aria-label="Cambia azienda" onClick={() => { setTicker(""); setQ(""); }}>✕</button></span>
+            <span className="chip">{ticker}<button type="button" aria-label={t("Cambia azienda")} onClick={() => { setTicker(""); setQ(""); }}>✕</button></span>
           ) : (
             <div className="add-company">
-              <div className="search"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Scrivi il ticker o il nome" style={{ paddingLeft: 12 }} aria-label="Azienda" /></div>
+              <div className="search"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Scrivi il ticker o il nome")} style={{ paddingLeft: 12 }} aria-label={t("Azienda")} /></div>
               {(res.data?.results.length ?? 0) > 0 && (
                 <ul className="pick">{res.data!.results.map((r) => (
                   <li key={r.ticker}><span><b>{r.ticker}</b> <span className="honest">{r.name}</span></span>
-                    <button type="button" className="btn" onClick={() => setTicker(r.ticker)}>Scegli</button></li>
+                    <button type="button" className="btn" onClick={() => setTicker(r.ticker)}>{t("Scegli")}</button></li>
                 ))}</ul>
               )}
             </div>
           )}
         </label>
-        <label className="field"><span>Fase</span>
+        <label className="field"><span>{t("Fase")}</span>
           <select className="select" value={stage} onChange={(e) => setStage(e.target.value)}>
             {board.stages.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
           </select>
         </label>
-        <label className="field wide"><span>Nota (es. perché la scarto, da dove viene l'idea)</span>
+        <label className="field wide"><span>{t("Nota (es. perché la scarto, da dove viene l'idea)")}</span>
           <input className="text-input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
         </label>
       </div>
       <div className="actions">
-        <button type="button" className="btn primary" disabled={!ticker || save.isPending} onClick={() => save.mutate()}>Salva</button>
-        <button type="button" className="btn ghost" onClick={onDone}>Annulla</button>
+        <button type="button" className="btn primary" disabled={!ticker || save.isPending} onClick={() => save.mutate()}>{t("Salva")}</button>
+        <button type="button" className="btn ghost" onClick={onDone}>{t("Annulla")}</button>
         {save.isError && <span className="neg">{save.error.message}</span>}
       </div>
     </Card>
@@ -65,11 +66,11 @@ function PipeCard({ c }: { c: PipelineCard }) {
       <div className="nm" title={c.name}>{c.name}</div>
       <div className="line">
         <span>{fmt(c.price, "price", { currency: c.currency ?? undefined })}</span>
-        <span title="margine del tuo fair value sul prezzo">{c.margin === null ? <span className="na">FV –</span> : <Num v={c.margin} kind="pct" change digits={0} />}</span>
-        <span title="giorni in questa fase">{c.days === null ? "" : `${c.days} g`}</span>
+        <span title={t("margine del tuo fair value sul prezzo")}>{c.margin === null ? <span className="na">FV –</span> : <Num v={c.margin} kind="pct" change digits={0} />}</span>
+        <span title={t("giorni in questa fase")}>{c.days === null ? "" : t("{n} g", { n: c.days })}</span>
       </div>
-      {c.missing.length > 0 ? <div className="miss">manca: {c.missing.join(", ")}</div>
-        : (c.stage === "pronta" || c.stage === "portafoglio") && <div className="ok">✓ pronta per la fase</div>}
+      {c.missing.length > 0 ? <div className="miss">{t("manca: {items}", { items: c.missing.map((m) => t(m)).join(", ") })}</div>
+        : (c.stage === "pronta" || c.stage === "portafoglio") && <div className="ok">✓ {t("pronta per la fase")}</div>}
       {c.note && <div className="nt">{c.note}</div>}
     </div>
   );
@@ -78,19 +79,19 @@ function PipeCard({ c }: { c: PipelineCard }) {
 export function PipelinePage() {
   const [adding, setAdding] = useState(false);
   const q = useQuery({ queryKey: ["pipeline"], queryFn: () => api<PipelineBoard>("/pipeline") });
-  if (q.isPending) return <div className="page"><h1>Pipeline</h1><Skeleton height={300} /></div>;
-  if (q.isError) return <div className="page"><h1>Pipeline</h1><Empty what="Pipeline non disponibile" why={q.error.message} /></div>;
+  if (q.isPending) return <div className="page"><h1>{t("Pipeline")}</h1><Skeleton height={300} /></div>;
+  if (q.isError) return <div className="page"><h1>{t("Pipeline")}</h1><Empty what={t("Pipeline non disponibile")} why={q.error.message} /></div>;
   const b = q.data;
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1>Pipeline</h1>
-          <p className="lead">Le aziende che stai studiando, dall'idea alla decisione. Si aggiungono qui o dalla scheda (menu Pipeline).</p></div>
-        {!adding && <button type="button" className="btn primary" onClick={() => setAdding(true)}>+ Azienda</button>}
+        <div><h1>{t("Pipeline")}</h1>
+          <p className="lead">{t("Le aziende che stai studiando, dall'idea alla decisione. Si aggiungono qui o dalla scheda (menu Pipeline).")}</p></div>
+        {!adding && <button type="button" className="btn primary" onClick={() => setAdding(true)}>+ {t("Azienda")}</button>}
       </div>
       {(adding || b.count === 0) && <AddForm board={b} onDone={() => setAdding(false)} />}
       {b.count === 0 ? (
-        <Empty what="La pipeline è vuota" why="Per passare a «Pronta per decidere» servono tesi in una frase, rischi, cosa ti farebbe cambiare idea, un fair value e una valutazione salvata: è il contenuto minimo di un memo d'investimento." />
+        <Empty what={t("La pipeline è vuota")} why={t("Per passare a «Pronta per decidere» servono tesi in una frase, rischi, cosa ti farebbe cambiare idea, un fair value e una valutazione salvata: è il contenuto minimo di un memo d'investimento.")} />
       ) : (
         <>
           <div className="pipe-board">
@@ -101,13 +102,13 @@ export function PipelinePage() {
               </section>
             ))}
           </div>
-          <p className="honest">Fatto quando: «Pronta per decidere» = tesi in una frase, rischi, cosa farebbe cambiare idea (scheda → La mia ricerca), fair value e una valutazione salvata nel diario (scheda → Valutazione); «In portafoglio» anche la data di revisione. Lo storico degli spostamenti resta salvato.</p>
+          <p className="honest">{t("Fatto quando: «Pronta per decidere» = tesi in una frase, rischi, cosa farebbe cambiare idea (scheda → La mia ricerca), fair value e una valutazione salvata nel diario (scheda → Valutazione); «In portafoglio» anche la data di revisione. Lo storico degli spostamenti resta salvato.")}</p>
           {b.history.length > 0 && (
             <details className="details card" style={{ padding: 16 }}>
-              <summary>Storico degli spostamenti</summary>
+              <summary>{t("Storico degli spostamenti")}</summary>
               <div className="table-wrap">
                 <table className="dense">
-                  <thead><tr><th>Quando</th><th>Ticker</th><th>Fase</th><th>Nota</th></tr></thead>
+                  <thead><tr><th>{t("Quando")}</th><th>{t("Ticker")}</th><th>{t("Fase")}</th><th>{t("Nota")}</th></tr></thead>
                   <tbody>{b.history.map((h, i) => (
                     <tr key={`${h.ticker}-${h.at}-${i}`}><td>{fmt(h.at.slice(0, 10), "date")} {h.at.slice(11, 16)}</td>
                       <td><Link to={`/azienda/${encodeURIComponent(h.ticker)}`}><b>{h.ticker}</b></Link></td><td>{h.label}</td>

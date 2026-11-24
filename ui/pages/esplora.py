@@ -185,8 +185,10 @@ def page_explore():
     pillar_cols = [f"v_{p}" for p in FILTER_PILLARS + ["insiders"]] if show_pillars else []
     for c in pillar_cols:
         shown[c] = shown[c].round(2)
+    sparks = d.sparklines(list(shown.index))
+    shown = shown.assign(spark=[sparks.get(t) for t in shown.index])
     shown = shown.reset_index()[["ticker", "name", "verdict", "sector"] + ([] if single else ["currency"]) +
-                                ["price"] + cols + pillar_cols + ["my_margin", "star"]]
+                                ["price", "spark"] + cols + pillar_cols + ["my_margin", "star"]]
     unit = f" {symbol}" if symbol else ""
     if shown.empty:  # st.dataframe vuota scrive "empty" in inglese
         empty_state("Nessuna azienda passa i filtri", "Allenta una condizione, abbassa i punteggi minimi o "
@@ -198,8 +200,8 @@ def page_explore():
             styled(shown, kinds), hide_index=True, width="stretch", height=table_height(len(shown), 15), on_select="rerun",
             selection_mode="multi-row", key="ex_table",
             column_config={"ticker": st.column_config.TextColumn("Ticker", pinned=True), "name": "Azienda",
-                           "verdict": st.column_config.TextColumn("Giudizio", help="Sintesi dei criteri, non una "
-                                                                  "raccomandazione (vedi la riga sotto il filtro)"),
+                           "spark": st.column_config.LineChartColumn("1 anno", width="small"),
+                           "verdict": st.column_config.TextColumn("Giudizio", help="Sintesi dei criteri fissi della scheda (vedi la riga sotto il filtro)"),
                            "sector": "Settore", "currency": "Valuta",
                            "price": num_col(f"Prezzo{unit}"),
                            "my_margin": num_col("Margine sul tuo FV",

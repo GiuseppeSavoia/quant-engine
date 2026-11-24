@@ -58,19 +58,20 @@ def main_config_args() -> list[str]:
 
 
 
-# Aspetto chiaro = base del prodotto (2026-11-23, stile Apple): fondo #f5f5f7, schede bianche, blu di sistema
-# (#0071e3, 4,6:1 sul bianco), carattere di sistema (SF Pro sul Mac), pulsanti a pillola. Tutte le opzioni esplicite:
-# quelle che mancano qui _apply_theme le mette a None (valori predefiniti di Streamlit). Stessi valori di TOKENS_LIGHT.
-FONT_STACK = "-apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, Inter, Segoe UI, Roboto, sans-serif"
-LIGHT_THEME = {"base": "light", "primaryColor": "#0071e3", "backgroundColor": "#f5f5f7",
-               "secondaryBackgroundColor": "#ffffff", "textColor": "#1d1d1f", "linkColor": "#0066cc",
-               "borderColor": "#a1a1a6", "showWidgetBorder": True, "baseRadius": "12px", "buttonRadius": "full",
+# Aspetto chiaro (2026-11-24, "terminale da prodotto", stessa struttura dello scuro che è la base): fondo #f3f5f8,
+# superfici bianche con bordi sottili, accento verde acqua scuro #0f766e (>= 4,5:1 sul bianco), angoli piccoli. Tutte le
+# opzioni esplicite: quelle che mancano qui _apply_theme le mette a None (valori predefiniti di Streamlit). Stessi
+# valori di TOKENS_LIGHT; lo scuro sta in .streamlit/config.toml (valori di TOKENS_DARK).
+FONT_STACK = "Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, Roboto, Helvetica Neue, sans-serif"
+LIGHT_THEME = {"base": "light", "primaryColor": "#0f766e", "backgroundColor": "#f3f5f8",
+               "secondaryBackgroundColor": "#f6f8fa", "textColor": "#0f1720", "linkColor": "#0f766e",
+               "borderColor": "#8c959f", "showWidgetBorder": True, "baseRadius": "6px", "buttonRadius": "6px",
                "font": FONT_STACK, "headingFont": FONT_STACK, "codeFont": "monospace", "baseFontSize": 14,
-               "dataframeBorderColor": "#e5e5ea", "dataframeHeaderBackgroundColor": "#fafafc",
-               "dataframeHeaderTextColor": "#6e6e73", "greenColor": "#248a3d", "redColor": "#d70015",
-               "orangeColor": "#b25000", "blueColor": "#0071e3",
-               "chartCategoricalColors": ["#007aff", "#ff9500", "#af52de", "#34c759", "#ff2d55"]}
-LIGHT_SIDEBAR = {"backgroundColor": "#fbfbfd", "secondaryBackgroundColor": "#f5f5f7", "textColor": "#1d1d1f"}
+               "dataframeBorderColor": "#d8dee4", "dataframeHeaderBackgroundColor": "#f6f8fa",
+               "dataframeHeaderTextColor": "#5d6773", "greenColor": "#1a7f37", "redColor": "#cf222e",
+               "orangeColor": "#9a6700", "blueColor": "#0969da",
+               "chartCategoricalColors": ["#0969da", "#d1631b", "#8250df", "#9a7b00", "#bf3989"]}
+LIGHT_SIDEBAR = {"backgroundColor": "#ffffff", "secondaryBackgroundColor": "#f6f8fa", "textColor": "#0f1720"}
 CLASSIC_THEME = LIGHT_THEME  # nome storico
 
 
@@ -95,19 +96,19 @@ PREFS_FILE = "preferenze_interfaccia.json"
 
 
 def appearance() -> str:
-    """Preferenza dell'aspetto: "sistema" (predefinita), "scuro" o "chiaro". Il vecchio formato
-    {"terminal": vero/falso} dell'interruttore vale come scelta esplicita: scuro/chiaro."""
+    """Preferenza dell'aspetto: "scuro" (predefinito dal 2026-11-24: è l'aspetto del prodotto), "chiaro" o
+    "sistema". Il vecchio formato {"terminal": vero/falso} dell'interruttore vale come scelta esplicita: scuro/chiaro."""
     try:
         prefs = json.loads(prefs_path(PREFS_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return "sistema"
+        return "scuro"
     if not isinstance(prefs, dict):
-        return "sistema"
+        return "scuro"
     if prefs.get("aspetto") in APPEARANCES:
         return prefs["aspetto"]
     if "terminal" in prefs:
         return "scuro" if prefs["terminal"] else "chiaro"
-    return "sistema"
+    return "scuro"
 
 
 def system_scheme() -> str | None:
@@ -121,10 +122,10 @@ def system_scheme() -> str | None:
 
 
 def _terminal_wanted() -> bool:
-    """Tema scuro (grafite)? Con "Segui il sistema" e schema ancora ignoto: chiaro, la base del prodotto."""
+    """Tema scuro? Con "Segui il sistema" e schema ancora ignoto: scuro, l'aspetto del prodotto."""
     mode = appearance()
     if mode == "sistema":
-        return system_scheme() == "dark"
+        return system_scheme() != "light"
     return mode == "scuro"
 
 
@@ -203,55 +204,56 @@ def _on_appearance():
 TERMINAL = _terminal_wanted()
 
 
-# ---------------------------------------------------------------- token (sistema visivo 2026-11-23, stile Apple)
-# Linguaggio visivo ispirato alle app Apple (nessun nome, logo o elemento di Apple): carattere di sistema (SF Pro sul
-# Mac), fondo #f5f5f7 con schede bianche senza bordo e angoli ampi, blu di sistema come unico accento, pulsanti a
-# pillola, controllo segmentato per le pagine, grigi caldi per il testo secondario. Scuro = nero con schede #1c1c1e.
-# Testo >= 4,5:1 sul suo fondo, bordo dei controlli >= 3:1; "--text-off" solo per "–" e disattivati.
+# ---------------------------------------------------------------- token (sistema visivo 2026-11-24, terminale da prodotto)
+# Scelta dell'utente il 2026-11-24 tra tre direzioni mostrate: "terminale moderno" scuro (tipo i terminali finanziari
+# web), rifinito come prodotto da vendere. SOSTITUISCE lo stile Apple del 2026-11-23. Scuro = base: fondo #0b0e13,
+# superfici #11151c/#171c24, bordi sottili e niente ombre sulle schede (solo sui menu), angoli piccoli (4/6/8 px),
+# accento verde acqua SOLO per interazione e selezione (link, fuoco, scheda attiva, pulsante primario): esiti e
+# variazioni usano i colori di stato (pos/neg/warn) con simbolo. Chiaro = stessa struttura, accento #0f766e (>= 4,5:1).
+# Numeri in monospazio con cifre tabellari, sempre nel formato italiano (fmt). Testo >= 4,5:1, bordo controlli >= 3:1.
 TOKENS_DARK = {
-    "bg": "#000000", "surface-1": "#1c1c1e", "surface-2": "#2c2c2e", "surface-hi": "#0b2a4a", "chrome": "#161617",
-    "border": "#38383a", "border-ctl": "#7c7c80", "track": "#3a3a3c",
-    "shadow": "0 0 0 1px rgba(255,255,255,.05)", "shadow-lg": "0 12px 40px rgba(0,0,0,.6)",
-    "text": "#f5f5f7", "text-num": "#ffffff", "text-2": "#c7c7cc", "text-3": "#98989d", "text-off": "#636366",
-    "accent": "#0a84ff", "accent-soft": "#0b2a4a", "on-accent": "#ffffff", "header-line": "#38383a",
-    "label": "#98989d", "fill": "rgba(118,118,128,.24)", "fill-hover": "rgba(118,118,128,.34)",
-    "pos": "#30d158", "neg": "#ff453a", "warn": "#ff9f0a", "info": "#2997ff", "trap": "#ff7a45",
+    "bg": "#0b0e13", "surface-1": "#11151c", "surface-2": "#171c24", "surface-hi": "#10302c", "chrome": "#0e1218",
+    "border": "#222934", "border-ctl": "#5b6576", "track": "#222934",
+    "shadow": "none", "shadow-lg": "0 16px 40px rgba(0,0,0,.55)",
+    "text": "#e6edf3", "text-num": "#f0f6fc", "text-2": "#b1bac4", "text-3": "#8b949e", "text-off": "#545d68",
+    "accent": "#2dd4bf", "accent-soft": "#10302c", "on-accent": "#04201c", "header-line": "#222934",
+    "label": "#8b949e", "fill": "rgba(139,148,158,.14)", "fill-hover": "rgba(139,148,158,.22)",
+    "pos": "#3fb950", "neg": "#f85149", "warn": "#d29922", "info": "#58a6ff", "trap": "#f0883e",
 }
 TOKENS_LIGHT = {
-    "bg": "#f5f5f7", "surface-1": "#ffffff", "surface-2": "#f5f5f7", "surface-hi": "#e8f1fd", "chrome": "#fbfbfd",
-    "border": "#e5e5ea", "border-ctl": "#86868b", "track": "#e5e5ea",
-    "shadow": "0 1px 2px rgba(0,0,0,.04), 0 4px 18px rgba(0,0,0,.04)", "shadow-lg": "0 16px 48px rgba(0,0,0,.14)",
-    "text": "#1d1d1f", "text-num": "#1d1d1f", "text-2": "#424245", "text-3": "#6e6e73", "text-off": "#aeaeb2",
-    "accent": "#0071e3", "accent-soft": "#e8f1fd", "on-accent": "#ffffff", "header-line": "#e5e5ea",
-    "label": "#6e6e73", "fill": "rgba(118,118,128,.12)", "fill-hover": "rgba(118,118,128,.2)",
-    "pos": "#248a3d", "neg": "#d70015", "warn": "#b25000", "info": "#0066cc", "trap": "#c93400",
+    "bg": "#f3f5f8", "surface-1": "#ffffff", "surface-2": "#f6f8fa", "surface-hi": "#e3f4f1", "chrome": "#ffffff",
+    "border": "#d8dee4", "border-ctl": "#8c959f", "track": "#e5e9ee",
+    "shadow": "none", "shadow-lg": "0 16px 40px rgba(15,23,32,.16)",
+    "text": "#0f1720", "text-num": "#0f1720", "text-2": "#3b4450", "text-3": "#5d6773", "text-off": "#a3acb6",
+    "accent": "#0f766e", "accent-soft": "#e3f4f1", "on-accent": "#ffffff", "header-line": "#d8dee4",
+    "label": "#5d6773", "fill": "rgba(15,23,32,.06)", "fill-hover": "rgba(15,23,32,.1)",
+    "pos": "#1a7f37", "neg": "#cf222e", "warn": "#9a6700", "info": "#0969da", "trap": "#bc4c00",
 }
 TOKENS_TERMINAL = TOKENS_DARK  # nome storico
-TYPE_SCALE = {"fs-micro": "12px", "fs-data": "13px", "fs-body": "15px", "fs-title": "17px", "fs-h2": "19px",
-              "fs-h1": "34px", "fs-key": "30px", "fs-big": "22px"}
-FONTS = {"mono": 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace',
-         "sans": '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Inter, '
-                 '"Segoe UI", Roboto, Arial, sans-serif'}
-RADII = {"r-sm": "8px", "r-md": "12px", "r-lg": "18px"}
+TYPE_SCALE = {"fs-micro": "11px", "fs-data": "13px", "fs-body": "14px", "fs-title": "15px", "fs-h2": "17px",
+              "fs-h1": "24px", "fs-key": "26px", "fs-big": "20px"}
+FONTS = {"mono": '"SF Mono", ui-monospace, SFMono-Regular, Menlo, "JetBrains Mono", Consolas, monospace',
+         "sans": 'Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, '
+                 'sans-serif'}
+RADII = {"r-sm": "4px", "r-md": "6px", "r-lg": "8px"}
 TOKENS = TOKENS_DARK if TERMINAL else TOKENS_LIGHT
 
 
-# palette categoriale (ordine fisso, mai ciclato): colori di sistema in stile Apple (blu, arancio, viola, verde, rosa),
-# validata con lo script della skill dataviz (chiaro su #ffffff e #f5f5f7; scuro su #1c1c1e e #000000; il verde dello
-# scuro e l'arancio sono un po' più scuri dei colori di sistema per stare nella fascia di luminosità). Arancio secondo:
-# la media mobile non si confonde con le candele verdi. Il 5° colore solo per Confronta.
-SERIES_DARK = ["#0a84ff", "#d97800", "#bf5af2", "#28a745", "#e8508a"]
-SERIES_LIGHT = ["#007aff", "#ff9500", "#af52de", "#34c759", "#ff2d55"]
+# palette categoriale (ordine fisso, mai ciclato): blu, arancio, viola, oro, rosa. Niente verde e niente verde acqua:
+# il verde è "in rialzo/positivo" e il verde acqua è l'accento dell'interfaccia. Validata con lo script della skill
+# dataviz (scuro su #11151c e #0b0e13, chiaro su #ffffff e #f3f5f8). Il 5° colore solo per Confronta.
+SERIES_DARK = ["#3b86e8", "#d0732f", "#a371f7", "#a8831a", "#db61a2"]
+SERIES_LIGHT = ["#0969da", "#d1631b", "#8250df", "#9a7b00", "#bf3989"]
 SERIES = SERIES_DARK if TERMINAL else SERIES_LIGHT
 
 
-MUTED = "#8e8e93"                                   # linee di riferimento (prezzo, mediane, soglie)
+MUTED = "#8b949e"                                   # linee di riferimento (prezzo, mediane, soglie)
 
 
-INK2 = "#c7c7cc" if TERMINAL else "#424245"         # riferimenti più marcati
+INK2 = "#b1bac4" if TERMINAL else "#3b4450"         # riferimenti più marcati
 
 
-GRID = "#2c2c2e" if TERMINAL else "#ededf0"
+GRID = "#1c222c" if TERMINAL else "#e5e9ee"
 
 
 STATUS = {"BUY": TOKENS["pos"], "BLOCKED": TOKENS["neg"], "SKIP": MUTED}
@@ -260,7 +262,7 @@ STATUS = {"BUY": TOKENS["pos"], "BLOCKED": TOKENS["neg"], "SKIP": MUTED}
 ACTION_LABEL = {"BUY": "▲ BUY", "SKIP": "● SKIP", "BLOCKED": "■ BLOCKED"}
 
 
-DIVERGING = [[0.0, "#ff3b30"], [0.5, "#2c2c2e" if TERMINAL else "#e5e5ea"], [1.0, SERIES[0]]]
+DIVERGING = [[0.0, TOKENS["neg"]], [0.5, "#222934" if TERMINAL else "#e5e9ee"], [1.0, SERIES[0]]]
 
 
 ACCENT = TOKENS["accent"]
@@ -574,7 +576,104 @@ table.qe-steps summary, details.qe-hist summary { cursor: pointer; }
 table.qe-steps pre { white-space: pre-wrap; margin: 2px 0 0; font: var(--fs-micro)/1.35 var(--mono); color: var(--text-2); }
 """.replace("SEARCH_ICON", _SEARCH_ICON)
 
-APP_CSS = "<style>\n" + _root_css() + BASE_CSS + COMPONENTS_CSS + SHELL_CSS + "</style>"
+# stile "terminale da prodotto" (2026-11-24, come l'interfaccia web: web/src/styles/app.css): superfici piatte con bordi
+# sottili e niente ombre, angoli piccoli, intestazioni di schede e tabelle in maiuscoletto, numeri in monospazio.
+# Viene dopo gli altri blocchi e li corregge (stessi selettori, già verificati da ui/streamlit_contract.py).
+PRODUCT_CSS = """
+.stApp, .stApp p, .stApp li, .stApp label, .stApp input, .stApp textarea, .stApp button { letter-spacing: 0; }
+.stMarkdown p, .stMarkdown li { font-size: var(--fs-body); letter-spacing: 0; }
+h1 { font-size: var(--fs-h1) !important; font-weight: 600 !important; letter-spacing: -.01em !important; }
+h2 { font-size: 19px !important; font-weight: 600 !important; letter-spacing: -.01em !important; }
+h3 { font-size: var(--fs-h2) !important; font-weight: 600 !important; letter-spacing: 0 !important; }
+h4 { font-weight: 600 !important; }
+.stMarkdown code { border-radius: var(--r-sm); }
+[data-testid="stMetric"] { box-shadow: none; border: 1px solid var(--border); padding: 12px 14px; }
+[data-testid="stMetricLabel"] p { font: 600 var(--fs-micro) var(--sans) !important; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--label) !important; }
+[data-testid="stMetricValue"] { font: 600 22px var(--mono) !important; letter-spacing: 0; }
+[data-testid="stExpander"] details { box-shadow: none; border: 1px solid var(--border) !important; border-radius: var(--r-lg) !important; }
+[data-testid="stExpander"] summary p { font-weight: 500; }
+[data-testid="stPopoverBody"] { border: 1px solid var(--border) !important; }
+[data-testid="stMultiSelectTagsContainer"] [data-tag] { border-radius: var(--r-sm) !important; }
+[data-testid="stButtonGroup"] button { border-radius: var(--r-md) !important; }
+.stButton button, .stDownloadButton button, .stFormSubmitButton button, [data-testid="stPopoverButton"] {
+  border-radius: var(--r-md) !important; font-size: var(--fs-data); }
+.stButton button:active, .stDownloadButton button:active, [data-testid="stPopoverButton"]:active { transform: translateY(1px); }
+.stButton button[kind="secondary"], .stDownloadButton button[kind="secondary"], [data-testid="stPopoverButton"],
+.stFormSubmitButton button[kind="secondaryFormSubmit"] {
+  border: 1px solid var(--border) !important; background: var(--surface-2) !important; }
+.stButton button[kind="secondary"]:hover, .stDownloadButton button[kind="secondary"]:hover,
+[data-testid="stPopoverButton"]:hover { border-color: var(--border-ctl) !important; background: var(--surface-2) !important; }
+.stButton button[kind="primary"] p, .stFormSubmitButton button[kind="primaryFormSubmit"] p { font-weight: 600; color: var(--on-accent); }
+[data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"],
+[data-testid="stTextAreaRootElement"] { border-radius: var(--r-md) !important; }
+[data-testid="stTextInputRootElement"]:focus-within, [data-testid="stTextAreaRootElement"]:focus-within,
+[data-testid="stNumberInputContainer"]:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
+.block-container { padding: 3.75rem 24px 3.8rem !important; max-width: 1600px !important; }
+[data-testid="stVerticalBlock"] { gap: 14px; }
+div[data-testid="stVerticalBlock"]:has(> .stElementContainer > .stHtml > .qe-panel-title) {
+  box-shadow: none; border: 1px solid var(--border) !important; padding: 14px 16px 16px !important; }
+[data-testid="stToast"] { border: 1px solid var(--border); }
+/* titoli delle schede e tabelle: maiuscoletto grigio, numeri in monospazio */
+.qe-panel-title { font: 600 var(--fs-micro)/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--label); }
+.qe-panel-title .r { text-transform: none; letter-spacing: 0; }
+.qe-panel-title .r a { color: var(--accent); }
+table.qe-dense { letter-spacing: 0; }
+table.qe-dense th { font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 6px 10px 7px; }
+table.qe-dense td { padding: 7px 10px; color: var(--text); }
+table.qe-dense td.n { font-family: var(--mono); font-size: 12.5px; color: var(--text-num); }
+table.qe-dense tr:has(a.qe-tk):hover td { background: var(--fill); }
+a.qe-tk { color: var(--accent); font-family: var(--mono); }
+.qe-badge { border-radius: var(--r-sm); padding: 1px 7px; background: color-mix(in srgb, currentColor 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 32%, transparent); }
+.qe-empty { box-shadow: none; border: 1px dashed var(--border-ctl); border-radius: var(--r-lg); font-size: var(--fs-data); }
+.qe-empty b { font-size: var(--fs-body); font-weight: 600; letter-spacing: 0; }
+[data-testid="stVerticalBlock"]:has(> .stElementContainer > .stHtml > .qe-panel-title) .qe-empty { background: transparent; }
+.qe-notice { border: 1px solid var(--border); background: var(--surface-1); color: var(--text-2); font-size: var(--fs-data); }
+.qe-notice.neg { border-color: color-mix(in srgb, var(--neg) 40%, var(--border)); background: color-mix(in srgb, var(--neg) 7%, var(--surface-1)); }
+.qe-notice.warn { border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); background: color-mix(in srgb, var(--warn) 7%, var(--surface-1)); }
+.qe-notice.info { background: var(--surface-1); }
+.qe-notice.pos { border-color: color-mix(in srgb, var(--pos) 40%, var(--border)); background: color-mix(in srgb, var(--pos) 7%, var(--surface-1)); }
+.qe-head, .qe-result, .qe-verdict { box-shadow: none; border: 1px solid var(--border); padding: 18px 20px; }
+.qe-head .nm { font: 600 var(--fs-key)/1.15 var(--sans); letter-spacing: -.01em; }
+.qe-head .tk { font: 600 var(--fs-data)/1.4 var(--mono); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: var(--r-sm); padding: 0 6px; }
+.qe-head .px { font: 600 var(--fs-key)/1.15 var(--mono); letter-spacing: 0; }
+.qe-head .chg { font-family: var(--mono); }
+.qe-kv dt { font: 500 var(--fs-micro) var(--sans); letter-spacing: .05em; text-transform: uppercase; }
+.qe-kv dd { font: 600 var(--fs-body) var(--mono); letter-spacing: 0; }
+.qe-kv .rng { height: 3px; }
+.qe-kv .rng b { top: -4px; width: 3px; height: 11px; margin-left: -1px; border-radius: 1px; background: var(--accent); box-shadow: none; }
+.qe-result-title, .qe-verdict .sub, .qe-changes .sub { font: 600 var(--fs-micro) var(--sans); letter-spacing: .07em; text-transform: uppercase;
+  color: var(--label); }
+.qe-verdict .label { font-weight: 600; letter-spacing: -.01em; }
+.qe-verdict .rule { font-size: var(--fs-data); }
+.qe-pillar .bar i { width: 11px; height: 4px; }
+.qe-pillar .sc { font-family: var(--mono); font-weight: 600; }
+.qe-alert .tk { font-family: var(--mono); }
+/* cornice: ricerca come campo con bordo, pagine come schede con il bordo */
+.st-key-qe_shell [data-testid="stTextInputRootElement"] { border: 1px solid var(--border) !important; border-radius: var(--r-md) !important;
+  background: var(--surface-2) !important; }
+.st-key-qe_shell [data-testid="stTextInputRootElement"]:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
+input[aria-label="Comando"] { font: var(--fs-data) var(--sans) !important; }
+.st-key-qe_fkeys { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); }
+.st-key-qe_fkeys [data-testid="stPageLink-NavLink"], .st-key-qe_fkey_on [data-testid="stPageLink-NavLink"] { border-radius: var(--r-sm); padding: 3px 10px !important; }
+.st-key-qe_fkeys [data-testid="stPageLink-NavLink"] * { color: var(--text-3) !important; }
+.st-key-qe_fkeys [data-testid="stPageLink-NavLink"]:hover * { color: var(--text) !important; }
+.st-key-qe_fkey_on [data-testid="stPageLink-NavLink"], .st-key-qe_fkey_on [data-testid="stPageLink-NavLink"]:hover {
+  box-shadow: inset 0 0 0 1px var(--border) !important; }
+.qe-status { font: 11px/1.4 var(--mono); padding: 7px 24px; }
+.qe-status a, .qe-honest a, p.qe-limits a, .qe-onboard a { color: var(--accent) !important; }
+.qe-onboard b { color: var(--text-num); font-weight: 600; font-size: var(--fs-body); }
+.qe-onboard p { margin: 2px 0 10px; color: var(--text-3); font-size: var(--fs-data); }
+.qe-onboard code { color: var(--accent); }
+.qe-pick { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-data); }
+p.qe-limits { margin: 0 0 10px; font-size: var(--fs-data); color: var(--text-2); line-height: 1.6; }
+.qe-status .demo { border-radius: var(--r-sm); background: transparent; border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  padding: 0 6px; letter-spacing: .06em; }
+"""
+
+APP_CSS = "<style>\n" + _root_css() + BASE_CSS + COMPONENTS_CSS + SHELL_CSS + PRODUCT_CSS + "</style>"
 # nomi storici: app.py e shell.py iniettavano questi due; ora è tutto in APP_CSS (stessi token per i due aspetti)
 TERMINAL_CSS = APP_CSS
 STATUS_CSS = ""

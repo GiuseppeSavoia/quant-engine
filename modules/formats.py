@@ -57,7 +57,11 @@ def _symbol(currency) -> str:
     return CURRENCY_SYMBOL.get(str(currency), str(currency))
 
 
-def _date(v, short: bool) -> str:
+MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+LANGS = ("it", "en")
+
+
+def _date(v, short: bool, lang: str = "it") -> str:
     if _missing(v):
         return NA
     if isinstance(v, (int, float, np.number)) and not isinstance(v, bool):
@@ -68,12 +72,15 @@ def _date(v, short: bool) -> str:
         return NA
     if pd.isna(d):
         return NA
+    if lang == "en":   # "13 Nov 2026" / "13 Nov 26": giorno e mese mai ambigui
+        return f"{d.day} {MONTHS_EN[d.month - 1]} {d:%y}" if short else f"{d.day} {MONTHS_EN[d.month - 1]} {d:%Y}"
     return f"{d:%d/%m/%y}" if short else f"{d:%d/%m/%Y}"
 
 
 def fmt(v, kind: str = "num", *, digits: int | None = None, currency: str | bool | None = None,
-        signed: bool = False, arrow: bool = False, na: str = NA) -> str:
-    """Il valore come stringa in formato italiano.
+        signed: bool = False, arrow: bool = False, na: str = NA, lang: str = "it") -> str:
+    """Il valore come stringa in formato italiano (o inglese con lang="en": 1,234.56 · 12.3% · +1.2 pp · $66.3B ·
+    €12.5M · $1,234 · 13 Nov 2026; la valuta va davanti, CHF con uno spazio).
 
     kind:
       num     2 decimali (1.234,56)            int    intero (1.234)
@@ -87,7 +94,7 @@ def fmt(v, kind: str = "num", *, digits: int | None = None, currency: str | bool
     if kind == "text":
         return na if _missing(v) else str(v)
     if kind in ("date", "date_short"):
-        return na if _missing(v) else _date(v, kind == "date_short")
+        return na if _missing(v) else _date(v, kind == "date_short", lang)
     x = _num(v)
     if x is None:
         return na
@@ -96,12 +103,13 @@ def fmt(v, kind: str = "num", *, digits: int | None = None, currency: str | bool
     if kind == "pct":
         x, suffix = x * 100, "%"
     elif kind == "pp":
-        x, suffix = x * 100, " punti"
+        x, suffix = x * 100, (" pp" if lang == "en" else " punti")
         signed = True
     elif kind == "mult":
         suffix = "x"
     elif kind in ("money", "shares"):
-        for div, name in ((1e12, " T"), (1e9, " mld"), (1e6, " mln")):
+        for div, name in (((1e12, "T"), (1e9, "B"), (1e6, "M")) if lang == "en" else
+                          ((1e12, " T"), (1e9, " mld"), (1e6, " mln"))):
             if abs(x) >= div:
                 x, unit = x / div, name
                 break
@@ -110,10 +118,14 @@ def fmt(v, kind: str = "num", *, digits: int | None = None, currency: str | bool
     r = round(x, d)
     if r == 0:
         r = 0.0  # niente "-0,0"
-    body = it_number(f"{abs(r):,.{d}f}")
+    body = f"{abs(r):,.{d}f}" if lang == "en" else it_number(f"{abs(r):,.{d}f}")
     sign = MINUS if r < 0 else ("+" if (signed or arrow) and r > 0 else "")
     sym = _symbol(currency) if kind in ("money", "price", "num", "int") else ""
-    text = f"{sign}{body}{unit}{suffix}" + (f" {sym}" if sym else "")
+    if lang == "en":
+        lead = (sym + " " if len(sym) > 1 else sym) if sym else ""
+        text = f"{sign}{lead}{body}{unit}{suffix}"
+    else:
+        text = f"{sign}{body}{unit}{suffix}" + (f" {sym}" if sym else "")
     if arrow:
         text = ("▲ " if r > 0 else "▼ " if r < 0 else "■ ") + text
     return text
@@ -141,3 +153,52 @@ def it_text(text: str) -> str:
         return text
     out = _EN_NUMBER.sub(lambda m: it_number(m.group(0)), str(text))
     return out.replace(">=", "≥").replace("<=", "≤")
+
+
+# ================================================================== italiano -> inglese (testi già formattati)
+# Un valore uscito da fmt(..., lang="it") ricostruito in inglese: serve alla traduzione dei testi del motore
+# (modules/i18n.py), che riceve frasi già scritte in italiano. Solo il valore INTERO (mai pezzi di frase).
+_SYMBOLS = "|".join(re.escape(x) for x in sorted(set(CURRENCY_SYMBOL.values()), key=len, reverse=True))
+_IT_VALUE = re.compile(
+    r"^(?P<arrow>[▲▼■] )?(?P<sign>[+−-])?(?P<int>\d{1,3}(?:\.\d{3})*|\d+)(?:,(?P<dec>\d+))?"
+    r"(?P<unit> T| mld| mln)?(?P<suffix>%|x| punti)?(?: (?P<sym>" + _SYMBOLS + r"|[A-Z]{3}))?$")
+_IT_DATE = re.compile(r"^(\d{2})/(\d{2})/(\d{2}|\d{4})$")
+MONTHS_IT = ("gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic")
+_IT_MONTH = re.compile(r"^(" + "|".join(MONTHS_IT) + r") (\d{2}|\d{4})$")
+_UNIT_EN = {" T": "T", " mld": "B", " mln": "M"}
+
+
+def en_value(text: str) -> str | None:
+    """"66,3 mld $" -> "$66.3B", "12,3%" -> "12.3%", "+1,2 punti" -> "+1.2 pp", "13/11/2026" -> "13 Nov 2026";
+    None se il testo non è un valore formattato da fmt (allora la traduzione lo tratta come testo)."""
+    t = str(text).strip()
+    m = _IT_DATE.match(t)
+    if m:
+        dd, mm, yy = int(m.group(1)), int(m.group(2)), m.group(3)
+        if 1 <= mm <= 12 and 1 <= dd <= 31:
+            return f"{dd} {MONTHS_EN[mm - 1]} {yy}"
+        return None
+    m = re.match(r"^(\d{2})/(\d{2})$", t)          # "13/11" (giorno e mese degli avvisi)
+    if m and 1 <= int(m.group(2)) <= 12 and 1 <= int(m.group(1)) <= 31:
+        return f"{int(m.group(1))} {MONTHS_EN[int(m.group(2)) - 1]}"
+    m = _IT_MONTH.match(t)                     # "set 26" (mese e anno brevi delle tabelle)
+    if m:
+        return f"{MONTHS_EN[MONTHS_IT.index(m.group(1))]} {m.group(2)}"
+    if t.isdigit():
+        return t                               # "2019", "15": interi senza separatori (anni, conteggi) invariati
+    m = _IT_VALUE.match(t)
+    if not m or ("." in m.group("int") and m.group("dec") is None and not m.group("unit") and not m.group("suffix")
+                 and not m.group("sym") and len(m.group("int")) < 5):
+        # "1.5" (testo in inglese, non un migliaio italiano) resta com'è; "1.234" e più lunghi sono migliaia
+        return None if not m else (None if len(m.group("int").split(".")[-1]) != 3 else _rebuild(m))
+    return _rebuild(m)
+
+
+def _rebuild(m) -> str:
+    body = f"{int(m.group('int').replace('.', '')):,}" + (f".{m.group('dec')}" if m.group("dec") else "")
+    sign = MINUS if m.group("sign") in ("−", "-") else (m.group("sign") or "")
+    unit = _UNIT_EN.get(m.group("unit") or "", "")
+    suffix = {" punti": " pp"}.get(m.group("suffix") or "", m.group("suffix") or "")
+    sym = m.group("sym") or ""
+    lead = (sym + " " if len(sym) > 1 else sym) if sym else ""
+    return f"{m.group('arrow') or ''}{sign}{lead}{body}{unit}{suffix}"

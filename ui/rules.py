@@ -224,10 +224,48 @@ def verdict_table(d, tickers=None) -> pd.DataFrame:
 
 
 def verdict_note() -> None:
-    """La riga di cautela vicino al giudizio (filtro o colonna)."""
-    st.caption(VERDICT_NOTE)
+    """La riga vicino al giudizio (filtro o colonna): rimanda alla pagina Metodo e limiti, dove stanno le cautele intere
+    (una sola avvertenza fissa per pagina, nella barra in fondo)."""
+    st.html('<p class="qe-limits" style="margin:0">Il giudizio applica i criteri fissi della scheda: '
+            '<a href="./limiti" target="_self">come funziona e limiti ›</a></p>')
 
 
 __all__ = ["_metric_column", "metric_label", "metric_kind", "styled", "round_for_display", "num_col", "pillar_column", "_rule_unit", "_rules_set", "_rules_add", "_rules_remove",
            "_rules_widgets", "VERDICT_NOTE", "PILLARS", "PILLAR_SHORT", "PILLAR_HELP", "verdict_text",
            "verdict_options", "pillar_grade", "verdict_table", "verdict_note", "DIGITS"]
+
+
+def get_started(d, key: str = "start"):
+    """Avvio guidato al posto delle pagine vuote (come l'interfaccia nuova): seguire le prime «Candidate» dell'S&P 500
+    per punteggio con un clic (anche tutte insieme), comandi da provare nella barra in alto, collegamenti utili."""
+    import html as _html
+
+    from ui.components import ticker_link
+
+    v = verdict_table(d, list(d.index_tickers))
+    top = v[v["category"] == "candidata"].head(6) if not v.empty else v
+    st.html('<div class="qe-onboard"><b>1 · Segui le prime aziende</b><p>Prezzi, giudizio e avvisi (bilanci nuovi, '
+            'prezzo sotto la tua soglia) arrivano qui. Per cominciare, le prime «Candidate» dell\'S&amp;P 500 per '
+            'punteggio:</p></div>')
+    if not top.empty:
+        cols = st.columns(len(top) + 1, vertical_alignment="center")
+        for col, (t, r) in zip(cols, top.iterrows()):
+            with col:
+                st.html(f'<div class="qe-pick">{ticker_link(t)} <span class="flat">'
+                        f'{_html.escape(str(r.get("name") or ""))}</span></div>')
+                if st.button(f"＋ {t}", key=f"{key}_{t}", width="stretch", help=f"Segui {t}"):
+                    d.follow([t])
+                    st.toast(f"Ora segui {t}")
+                    st.rerun()
+        if cols[-1].button("Segui tutte", key=f"{key}_all", type="primary", width="stretch"):
+            d.follow(list(top.index))
+            st.toast(f"Ora segui {', '.join(top.index)}")
+            st.rerun()
+    first = top.index[0] if not top.empty else "MSFT"
+    second = top.index[1] if len(top) > 1 else "AAPL"
+    st.html(f'<div class="qe-onboard"><b>2 · Cerca e comanda dalla barra in alto</b><p>Scrivi un ticker, un nome o un '
+            f'comando: <code>{first} FA</code> bilanci · <code>{first} DCF</code> valutazione · <code>{first} '
+            f'{second}</code> confronto · <code>SEGUI {first}</code>. Tasti F1-F8 per le pagine principali.</p>'
+            f'<b>3 · Trova idee e registra le tue posizioni</b><p><a href="./esplora" target="_self">Esplora</a> con i '
+            f'filtri o le ricerche pronte, guarda chi le comprerebbe nel tavolo dei grandi investitori (scheda, funzione '
+            f'TAV), poi aggiungi le operazioni nel <a href="./portafoglio" target="_self">Portafoglio</a>.</p></div>')

@@ -608,6 +608,26 @@ def test_company_investors_panel(client):
     assert bad["ok"] is False
 
 
+
+def test_command_bar_market_strip_and_sparklines(client):
+    """Comandi interpretati dal motore (modules/commands.py), striscia di mercato dalle chiusure salvate, minigrafici
+    a un anno nelle tabelle (Esplora), data dell'ultimo aggiornamento in /health."""
+    t = get(client, "/companies", params={"limit": 1})["results"][0]["ticker"]
+    c = get(client, "/command", params={"q": f"{t.lower()} fa"})
+    assert c["page"] == "azienda" and c["tickers"] == [t] and c["section"] == "FA" and c["error"] is None
+    assert get(client, "/command", params={"q": "esplora"})["page"] == "esplora"
+    assert get(client, "/command", params={"q": "zzzzz"})["error"]
+    strip = get(client, "/market-strip")
+    json.dumps(strip, allow_nan=False)
+    keys = [i["key"] for i in strip["items"]]
+    assert "EW" in keys and "BREADTH" in keys and strip["as_of"]
+    ew = next(i for i in strip["items"] if i["key"] == "EW")
+    assert len(ew["spark"]) > 10 and ew["change"] is not None
+    rows = client.post(f"{API_PREFIX}/explore", json={}).json()["rows"]
+    assert rows and all(r["spark"] is None or len(r["spark"]) >= 2 for r in rows) and any(r["spark"] for r in rows)
+    assert "last_update" in get(client, "/health")
+
+
 def test_today(client):
     """Oggi: le mie aziende (seguite) con prezzo dal database, avvisi (non visti in cima, movimenti a parte),
     movimenti dell'indice ordinati, borse; nessun dato dal vivo."""

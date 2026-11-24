@@ -1,37 +1,38 @@
 [theme]
-# Aspetto scuro in stile Apple (2026-11-23): nero con schede #1c1c1e, blu di sistema, pulsanti a pillola. Il tema chiaro, base
-# del prodotto, sta in ui/common.LIGHT_THEME: _apply_theme cambia queste opzioni mentre gira e ricorda la scelta in
-# data/preferenze_interfaccia.json (menu "Dati": Segui il sistema, Scuro, Chiaro). Niente [theme.light]/[theme.dark]
-# qui: con quelle sezioni Streamlit sceglierebbe il tema nel browser e il codice Python (colori dei grafici, CSS) non
-# saprebbe quale è attivo. Valori uguali ai token TOKENS_DARK di ui/common.py.
+# Aspetto scuro "terminale da prodotto" (2026-11-24, scelto dall'utente; è l'aspetto predefinito): fondo #0b0e13,
+# superfici #11151c/#171c24, accento verde acqua, angoli piccoli. Il tema chiaro sta in ui/common.LIGHT_THEME:
+# _apply_theme cambia queste opzioni mentre gira e ricorda la scelta in data/preferenze_interfaccia.json (menu "Dati":
+# Scuro, Chiaro, Segui il sistema). Niente [theme.light]/[theme.dark] qui: con quelle sezioni Streamlit sceglierebbe
+# il tema nel browser e il codice Python (colori dei grafici, CSS) non saprebbe quale è attivo. Valori uguali ai token
+# TOKENS_DARK di ui/common.py.
 base = "dark"
-primaryColor = "#0a84ff"
-backgroundColor = "#000000"
-secondaryBackgroundColor = "#2c2c2e"
-textColor = "#f5f5f7"
-linkColor = "#2997ff"
-borderColor = "#7c7c80"   # bordo dei controlli: >= 3:1 sul fondo
+primaryColor = "#2dd4bf"
+backgroundColor = "#0b0e13"
+secondaryBackgroundColor = "#171c24"
+textColor = "#e6edf3"
+linkColor = "#2dd4bf"
+borderColor = "#5b6576"   # bordo dei controlli: >= 3:1 sul fondo
 showWidgetBorder = true
-baseRadius = "12px"
-buttonRadius = "full"
-font = "-apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, Inter, Segoe UI, Roboto, sans-serif"
-headingFont = "-apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, Inter, Segoe UI, Roboto, sans-serif"
+baseRadius = "6px"
+buttonRadius = "6px"
+font = "Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, Roboto, Helvetica Neue, sans-serif"
+headingFont = "Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, Roboto, Helvetica Neue, sans-serif"
 codeFont = "monospace"
 baseFontSize = 14
-dataframeBorderColor = "#38383a"
-dataframeHeaderBackgroundColor = "#1c1c1e"
-dataframeHeaderTextColor = "#98989d"
-greenColor = "#30d158"
-redColor = "#ff453a"
-orangeColor = "#ff9f0a"
-blueColor = "#0a84ff"
-# palette dei grafici validata su #1c1c1e e #000000 (blu, arancio, viola, verde, rosa): stessi valori di ui/common.SERIES
-chartCategoricalColors = ["#0a84ff", "#d97800", "#bf5af2", "#28a745", "#e8508a"]
+dataframeBorderColor = "#222934"
+dataframeHeaderBackgroundColor = "#11151c"
+dataframeHeaderTextColor = "#8b949e"
+greenColor = "#3fb950"
+redColor = "#f85149"
+orangeColor = "#d29922"
+blueColor = "#58a6ff"
+# palette dei grafici validata su #11151c e #0b0e13 (blu, arancio, viola, oro, rosa): stessi valori di ui/common.SERIES
+chartCategoricalColors = ["#3b86e8", "#d0732f", "#a371f7", "#a8831a", "#db61a2"]
 
 [theme.sidebar]
-backgroundColor = "#161617"
-secondaryBackgroundColor = "#2c2c2e"
-textColor = "#f5f5f7"
+backgroundColor = "#0e1218"
+secondaryBackgroundColor = "#171c24"
+textColor = "#e6edf3"
 
 [client]
 # niente "Deploy" né menu per sviluppatori

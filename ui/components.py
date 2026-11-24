@@ -363,8 +363,7 @@ def verdict_card_html(v, *, value_html: str = "", max_changes: int = 4) -> str:
     sym, tone, _ = VERDICT_STYLE.get(cat, ("●", "neutral", ""))
     as_of = getattr(v, "as_of", None)
     profile = getattr(v, "profile_label", "") or ""
-    right = " · ".join(x for x in [profile, f"al {fmt(as_of, 'date_short')}" if not _missing(as_of) else "",
-                                   "non è una raccomandazione"] if x)
+    right = " · ".join(x for x in [profile, f"al {fmt(as_of, 'date_short')}" if not _missing(as_of) else ""] if x)
     disclaimer = getattr(v, "disclaimer", "")
     title = (f'<div class="qe-panel-title"><span class="l">Verdetto</span>'
              f'<span class="r" title="{html.escape(disclaimer)}">{html.escape(right)}</span></div>')

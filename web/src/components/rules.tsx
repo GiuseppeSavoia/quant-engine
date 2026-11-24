@@ -2,6 +2,7 @@
 // nelle unità della metrica (percentuali in %, "tra i migliori" in quota). Il motore controlla di nuovo le regole: qui
 // solo l'aiuto mentre si scrive.
 import type { MetricMeta, Rule } from "../lib/api";
+import { t } from "../lib/i18n";
 
 export type RuleDraft = { id: number; metric: string; op: string; text: string };
 export type Op = { value: string; label: string; rank: boolean };
@@ -34,10 +35,10 @@ export function parseDrafts(drafts: RuleDraft[], metrics: Map<string, MetricMeta
     const x = parseNumber(r.text);
     const rank = r.op === "top_sector" || r.op === "top_index";
     let error = "";
-    if (!m) error = "scegli una metrica";
-    else if (x === null) error = "scrivi un numero";
-    else if (rank && !m.better) error = "questa metrica non ha un verso migliore: niente classifica";
-    else if (rank && !(x > 0 && x <= 100)) error = "la quota dei migliori va tra 0 e 100%";
+    if (!m) error = t("scegli una metrica");
+    else if (x === null) error = t("scrivi un numero");
+    else if (rank && !m.better) error = t("questa metrica non ha un verso migliore: niente classifica");
+    else if (rank && !(x > 0 && x <= 100)) error = t("la quota dei migliori va tra 0 e 100%");
     return { draft: r, error, rule: error ? null : ({ metric: r.metric, op: r.op, value: (x as number) / factor } as Rule) };
   });
 }
@@ -61,16 +62,16 @@ export function RuleRows({ drafts, setDrafts, metrics, groups, ops }: {
         const set = (patch: Partial<RuleDraft>) => setDrafts(drafts.map((x) => (x.id === draft.id ? { ...x, ...patch } : x)));
         return (
           <div key={draft.id} className="rule">
-            <select className="select" value={draft.metric} onChange={(e) => set({ metric: e.target.value })} aria-label="Metrica">
+            <select className="select" value={draft.metric} onChange={(e) => set({ metric: e.target.value })} aria-label={t("Metrica")}>
               {groups.map(([g, ms]) => <optgroup key={g} label={g}>{ms.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>)}
             </select>
-            <select className="select" value={draft.op} onChange={(e) => set({ op: e.target.value })} aria-label="Condizione">
+            <select className="select" value={draft.op} onChange={(e) => set({ op: e.target.value })} aria-label={t("Condizione")}>
               {ops.map((o) => <option key={o.value} value={o.value} disabled={o.rank && !m?.better}>{o.label}</option>)}
             </select>
-            <input className="num-input" inputMode="decimal" value={draft.text} placeholder="valore" aria-label="Valore"
+            <input className="num-input" inputMode="decimal" value={draft.text} placeholder={t("valore")} aria-label={t("Valore")}
               aria-invalid={!!error && draft.text !== ""} onChange={(e) => set({ text: e.target.value })} />
             <span className="unit">{unit}</span>
-            <button type="button" className="btn ghost" aria-label="Togli questa condizione" onClick={() => setDrafts(drafts.filter((x) => x.id !== draft.id))}>✕</button>
+            <button type="button" className="btn ghost" aria-label={t("Togli questa condizione")} onClick={() => setDrafts(drafts.filter((x) => x.id !== draft.id))}>✕</button>
             {error && draft.text !== "" && <span className="warn small">{error}</span>}
           </div>
         );

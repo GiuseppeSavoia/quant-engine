@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { Card, Empty, Segmented, Skeleton } from "../components/ui";
 import { api, type PriceChart } from "../lib/api";
 import { fmt } from "../lib/fmt";
+import { t } from "../lib/i18n";
 
 function useWidth(): [React.RefObject<HTMLDivElement>, number] {
   const ref = useRef<HTMLDivElement>(null);
@@ -98,14 +99,14 @@ function Chart({ c, ma, log, showFilings, showTrades }: { c: PriceChart; ma: boo
     <div className="chart price" ref={ref}>
       <div className="legend">
         {bench ? <><span><i style={{ background: "var(--series-1)" }} />{c.ticker}</span><span><i style={{ background: "var(--series-2)" }} />{c.benchmark}</span></> : <>
-          <span><i style={{ background: "var(--series-1)" }} />{c.candles ? `Candele (una per ${c.bar.one})` : "Chiusura"}</span>
-          {ma && <><span><i style={{ background: "var(--series-2)" }} />Media 50 sedute</span><span><i style={{ background: "var(--series-3)" }} />Media 200 sedute</span></>}
-          {showFilings && c.filings.length > 0 && <span><i className="dashed" />Deposito 10-K</span>}
-          {showTrades && c.trades.length > 0 && <span>▲ ▼ operazioni del backtest</span>}
+          <span><i style={{ background: "var(--series-1)" }} />{c.candles ? t("Candele (una per {bar})", { bar: c.bar.one }) : t("Chiusura")}</span>
+          {ma && <><span><i style={{ background: "var(--series-2)" }} />{t("Media 50 sedute")}</span><span><i style={{ background: "var(--series-3)" }} />{t("Media 200 sedute")}</span></>}
+          {showFilings && c.filings.length > 0 && <span><i className="dashed" />{t("Deposito 10-K")}</span>}
+          {showTrades && c.trades.length > 0 && <span>▲ ▼ {t("operazioni del backtest")}</span>}
         </>}
       </div>
       <svg width={W} height={H} role="img" tabIndex={0} onKeyDown={onKey} onMouseLeave={() => setHover(null)}
-        aria-label={`Prezzo di ${c.ticker}${bench ? ` contro ${c.benchmark}` : ""}`}>
+        aria-label={bench ? t("Prezzo di {ticker} contro {benchmark}", { ticker: c.ticker, benchmark: c.benchmark }) : t("Prezzo di {ticker}", { ticker: c.ticker })}>
         {ticks(lo, hi, 5, log).map((t) => (
           <g key={t}>
             <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} className="grid" />
@@ -135,20 +136,20 @@ function Chart({ c, ma, log, showFilings, showTrades }: { c: PriceChart; ma: boo
           );
         }) : <path d={path(c.close)} className="line s1" />}
         {!bench && ma && <><path d={path(c.sma50)} className="line thin s2" /><path d={path(c.sma200)} className="line thin s3" /></>}
-        {!bench && showTrades && c.trades.map((t, k) => {
-          const i = nearest(t.date);
-          if (i === null || !finite(t.price) || (log && t.price <= 0)) return null;
-          const cx = x(i); const cy = y(t.price);
-          const buy = t.kind === "BUY";
+        {!bench && showTrades && c.trades.map((trd, k) => {
+          const i = nearest(trd.date);
+          if (i === null || !finite(trd.price) || (log && trd.price <= 0)) return null;
+          const cx = x(i); const cy = y(trd.price);
+          const buy = trd.kind === "BUY";
           const d = buy ? `M${cx},${cy - 7} l6,10 h-12 Z` : `M${cx},${cy + 7} l6,-10 h-12 Z`;
-          return <path key={k} d={d} className={`trade ${t.kind}`}><title>{`${t.label}: ${fmt(t.shares, "num", { digits: 1 })} azioni a ${fmt(t.price, "price")}`}</title></path>;
+          return <path key={k} d={d} className={`trade ${trd.kind}`}><title>{t("{label}: {shares} azioni a {price}", { label: trd.label, shares: fmt(trd.shares, "num", { digits: 1 }), price: fmt(trd.price, "price") })}</title></path>;
         })}
         {/* volumi */}
         {!bench && c.volume.map((v, i) => finite(v) ? (
           <rect key={`v${i}`} x={x(i) - bodyW / 2} y={vy(v)} width={bodyW} height={Math.max(vy0 + H2 - vy(v), 0.5)} className={up(i) ? "vol up" : "vol down"} />
         ) : null)}
         {!bench && <path d={c.vol_ma.map((v, i) => (finite(v) ? `${i && finite(c.vol_ma[i - 1]) ? "L" : "M"}${x(i)},${vy(v)}` : "")).join(" ")} className="line thin volma" />}
-        {!bench && <text x={pad.l - 8} y={vy0 + 10} textAnchor="end" className="ax">Volume</text>}
+        {!bench && <text x={pad.l - 8} y={vy0 + 10} textAnchor="end" className="ax">{t("Volume")}</text>}
         {c.dates.map((d, i) => ((n - 1 - i) % every === 0 ? <text key={d} x={x(i)} y={H - 6} textAnchor="middle" className="ax">{label(d)}</text> : null))}
         {c.dates.map((d, i) => <rect key={`h${d}`} x={pad.l + band * i} y={pad.t} width={Math.max(band, 1)} height={vy0 + H2 - pad.t} fill="transparent" onMouseEnter={() => setHover(i)} />)}
       </svg>
@@ -158,12 +159,12 @@ function Chart({ c, ma, log, showFilings, showTrades }: { c: PriceChart; ma: boo
           <span>{c.ticker}<em>{fmt(c.bench!.stock[h], "num", { digits: 1 })}</em></span>
           <span>{c.benchmark}<em>{fmt(c.bench!.benchmark[h], "num", { digits: 1 })}</em></span>
         </> : <>
-          {c.candles && <span>Apertura<em>{fmt(c.open[h], "price")}</em></span>}
-          {c.candles && <span>Massimo<em>{fmt(c.high[h], "price")}</em></span>}
-          {c.candles && <span>Minimo<em>{fmt(c.low[h], "price")}</em></span>}
-          <span>Chiusura<em>{fmt(c.close[h], "price", { currency: cur })}</em></span>
-          <span>Variazione<em className={(c.change[h] ?? 0) >= 0 ? "pos" : "neg"}>{fmt(c.change[h], "pct", { digits: 2, arrow: true })}</em></span>
-          <span>Volume<em>{fmt(c.volume[h], "int")}</em></span>
+          {c.candles && <span>{t("Apertura")}<em>{fmt(c.open[h], "price")}</em></span>}
+          {c.candles && <span>{t("Massimo")}<em>{fmt(c.high[h], "price")}</em></span>}
+          {c.candles && <span>{t("Minimo")}<em>{fmt(c.low[h], "price")}</em></span>}
+          <span>{t("Chiusura")}<em>{fmt(c.close[h], "price", { currency: cur })}</em></span>
+          <span>{t("Variazione")}<em className={(c.change[h] ?? 0) >= 0 ? "pos" : "neg"}>{fmt(c.change[h], "pct", { digits: 2, arrow: true })}</em></span>
+          <span>{t("Volume")}<em>{fmt(c.volume[h], "int")}</em></span>
         </>}
       </div>
     </div>
@@ -184,7 +185,7 @@ function Drawdown({ c }: { c: PriceChart }) {
   const area = pts.length ? `M${x(0)},${y(0)} L${pts.join(" L")} L${x(n - 1)},${y(0)} Z` : "";
   return (
     <div className="chart" ref={ref}>
-      <svg width={W} height={H} role="img" aria-label="Distanza dal massimo del periodo">
+      <svg width={W} height={H} role="img" aria-label={t("Distanza dal massimo del periodo")}>
         {[0, lo / 2, lo].map((t) => (
           <g key={t}><line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} className={t === 0 ? "zero" : "grid"} />
             <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" className="ax">{fmt(t, "pct", { digits: 0 })}</text></g>
@@ -209,9 +210,9 @@ export function PricePanel({ ticker }: { ticker: string }) {
     placeholderData: keepPreviousData,
   });
   if (q.isPending) return <Skeleton height={420} />;
-  if (q.isError) return <Empty what="Grafico non disponibile" why={q.error.message} />;
+  if (q.isError) return <Empty what={t("Grafico non disponibile")} why={q.error.message} />;
   const c = q.data;
-  if (c.empty) return <Empty what="Nessun prezzo per questa azienda" why="I prezzi arrivano con l'aggiornamento dei dati." />;
+  if (c.empty) return <Empty what={t("Nessun prezzo per questa azienda")} why={t("I prezzi arrivano con l'aggiornamento dei dati.")} />;
   const s = c.summary;
   const toggle = (label: string, on: boolean, set: (v: boolean) => void, disabled = false, help?: string) => (
     <label className="check" title={help}><input type="checkbox" checked={on && !disabled} disabled={disabled} onChange={(e) => set(e.target.checked)} />{label}</label>
@@ -219,28 +220,28 @@ export function PricePanel({ ticker }: { ticker: string }) {
   return (
     <div className="financials">
       <div className="toolbar">
-        <Segmented label="Periodo" value={period} onChange={setPeriod} options={c.periods.map((p) => ({ value: p, label: p }))} />
-        <Segmented label="Tipo di grafico" value={style} onChange={setStyle} options={c.styles.map((p) => ({ value: p, label: p }))} />
-        {toggle("Medie", ma, setMa, bench, "Medie mobili delle chiusure a 50 e 200 sedute")}
-        {toggle("Log", log, setLog, false, "Scala logaritmica del prezzo")}
-        {toggle(`vs ${c.benchmark || "indice"}`, bench, setBench, !c.benchmark, `Confronta con ${c.benchmark}, base 100 all'inizio del periodo`)}
-        {toggle("Operazioni", trades, setTrades, bench, "Acquisti, vendite, stop-loss e take-profit del backtest")}
-        {toggle("10-K", filings, setFilings, bench, "Date di deposito dei bilanci annuali alla SEC")}
-        {q.isFetching && <span className="honest">aggiorno…</span>}
+        <Segmented label={t("Periodo")} value={period} onChange={setPeriod} options={c.periods.map((p) => ({ value: p, label: t(p) }))} />
+        <Segmented label={t("Tipo di grafico")} value={style} onChange={setStyle} options={c.styles.map((p) => ({ value: p, label: t(p) }))} />
+        {toggle(t("Medie"), ma, setMa, bench, t("Medie mobili delle chiusure a 50 e 200 sedute"))}
+        {toggle(t("Log"), log, setLog, false, t("Scala logaritmica del prezzo"))}
+        {toggle(t("vs {benchmark}", { benchmark: c.benchmark || t("indice") }), bench, setBench, !c.benchmark, t("Confronta con {benchmark}, base 100 all'inizio del periodo", { benchmark: c.benchmark }))}
+        {toggle(t("Operazioni"), trades, setTrades, bench, t("Acquisti, vendite, stop-loss e take-profit del backtest"))}
+        {toggle("10-K", filings, setFilings, bench, t("Date di deposito dei bilanci annuali alla SEC"))}
+        {q.isFetching && <span className="honest">{t("aggiorno…")}</span>}
       </div>
       <div className="kpis">
-        <div><dt>Rendimento</dt><dd className={s.return >= 0 ? "pos" : "neg"}>{fmt(s.return, "pct", { signed: true })}</dd></div>
-        <div title={`il ${fmt(s.high_date, "date")}`}><dt>Massimo</dt><dd>{fmt(s.high, "price", { currency: c.currency })}</dd></div>
-        <div title={`il ${fmt(s.low_date, "date")}`}><dt>Minimo</dt><dd>{fmt(s.low, "price", { currency: c.currency })}</dd></div>
-        <div title="Deviazione standard dei rendimenti giornalieri (logaritmici) del periodo × √252"><dt>Volatilità annua</dt><dd>{fmt(s.volatility, "pct")}</dd></div>
-        <div title="Ultima chiusura rispetto al massimo del periodo"><dt>Dal massimo</dt><dd>{fmt(s.from_high, "pct", { signed: true })}</dd></div>
-        <div title="Peggior discesa delle chiusure dal massimo precedente, nel periodo"><dt>Drawdown massimo</dt><dd className="neg">{fmt(s.max_drawdown, "pct")}</dd></div>
+        <div><dt>{t("Rendimento")}</dt><dd className={s.return >= 0 ? "pos" : "neg"}>{fmt(s.return, "pct", { signed: true })}</dd></div>
+        <div title={t("il {date}", { date: fmt(s.high_date, "date") })}><dt>{t("Massimo")}</dt><dd>{fmt(s.high, "price", { currency: c.currency })}</dd></div>
+        <div title={t("il {date}", { date: fmt(s.low_date, "date") })}><dt>{t("Minimo")}</dt><dd>{fmt(s.low, "price", { currency: c.currency })}</dd></div>
+        <div title={t("Deviazione standard dei rendimenti giornalieri (logaritmici) del periodo × √252")}><dt>{t("Volatilità annua")}</dt><dd>{fmt(s.volatility, "pct")}</dd></div>
+        <div title={t("Ultima chiusura rispetto al massimo del periodo")}><dt>{t("Dal massimo")}</dt><dd>{fmt(s.from_high, "pct", { signed: true })}</dd></div>
+        <div title={t("Peggior discesa delle chiusure dal massimo precedente, nel periodo")}><dt>{t("Drawdown massimo")}</dt><dd className="neg">{fmt(s.max_drawdown, "pct")}</dd></div>
       </div>
-      <Card title={bench ? `${c.ticker} contro ${c.benchmark}` : "Prezzo e volumi"} right={bench ? "base 100 all'inizio del periodo" : c.currency}>
+      <Card title={bench ? t("{ticker} contro {benchmark}", { ticker: c.ticker, benchmark: c.benchmark }) : t("Prezzo e volumi")} right={bench ? t("base 100 all'inizio del periodo") : c.currency}>
         <Chart c={c} ma={ma && !bench} log={log} showFilings={filings && !bench} showTrades={trades && !bench} />
         <p className="honest">{c.notes.filter((t) => !bench || !t.startsWith("Volumi")).join(" · ")}.</p>
       </Card>
-      <Card title="Dal massimo" right="distanza dal massimo del periodo">
+      <Card title={t("Dal massimo")} right={t("distanza dal massimo del periodo")}>
         <Drawdown c={c} />
       </Card>
     </div>

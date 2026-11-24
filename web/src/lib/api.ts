@@ -1,4 +1,6 @@
-// Client dell'API Python (/api/v1, api/app.py). Valori grezzi: la formattazione la fa fmt.ts.
+// Client dell'API Python (/api/v1, api/app.py). Valori grezzi: la formattazione la fa fmt.ts. La lingua va in
+// X-Lang: con "en" il server traduce i testi del motore (modules/i18n).
+import { LANG } from "./i18n";
 
 export const API = "/api/v1";
 
@@ -11,7 +13,7 @@ export class ApiError extends Error {
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(API + path, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: { "Content-Type": "application/json", "X-Lang": LANG, ...(init?.headers ?? {}) },
   });
   if (!res.ok) {
     let detail = res.statusText;
@@ -28,7 +30,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 // ---------------------------------------------------------------- tipi delle risposte
 export interface CompanyRow { ticker: string; name: string; sector: string | null; universe: string }
-export interface Health { ok: boolean; demo: boolean; database: string }
+export interface Health { ok: boolean; demo: boolean; database: string; last_update?: string | null }
+export interface StripItem { key: string; label: string; value: number; kind: string; change: number | null; change_kind?: string;
+  change_1y?: number | null; spark: number[] | null; detail?: string; highs?: number; lows?: number }
+export interface MarketStrip { as_of: string | null; items: StripItem[] }
 
 export interface Valued { value: number | null; kind: string }
 export interface KeyMetric extends Valued { key: string; label: string }
@@ -103,6 +108,7 @@ export interface Statements {
 
 // ---------------------------------------------------------------- le mie aziende
 export interface WatchRow {
+  spark?: number[] | null;
   ticker: string; name: string | null; sector: string | null; currency: string; price: number | null;
   ret_1m: number | null; ret_1y: number | null; pe: number | null; ev_ebit: number | null; fcf_yield: number | null;
   roic: number | null; revenue_growth: number | null; dividend_yield: number | null;
@@ -133,6 +139,7 @@ export interface ExploreCatalog {
   default_columns: string[]; note: string;
 }
 export interface ExploreRow {
+  spark?: number[] | null;
   ticker: string; name: string | null; sector: string | null; currency: string | null; price: number | null;
   category: string | null; verdict: string | null; followed: boolean; my_margin: number | null;
   pillar_quality: number | null; pillar_solidity: number | null; pillar_price: number | null; pillar_flags: number | null;
@@ -175,7 +182,7 @@ export interface TodayAlert { id: number; ticker: string; code: string; tone: st
 export interface Today {
   as_of: string; source: string; unseen: number; news_mine: boolean; documents_days: number; insiders_loaded: boolean;
   mine: { ticker: string; name: string; last: number | null; change_pct: number | null; ret_1y: number | null; margin: number | null;
-    buy_below: number | null; buy_gap: number | null; category: string; verdict: string; rule: string; held: boolean; unseen: number }[];
+    buy_below: number | null; buy_gap: number | null; category: string; verdict: string; rule: string; held: boolean; unseen: number; spark?: number[] | null }[];
   alerts: TodayAlert[]; moves: TodayAlert[];
   news: { published: string; source: string; title: string; link: string; tickers: string[] }[];
   documents: { when: string; ticker: string; name: string; form: string; what: string; important: boolean; url: string | null; mine: boolean }[];

@@ -251,6 +251,7 @@ def _status_bar():
                      f'<span class="p" title="pausa">◐{b["code"]}</span>' if b["state"] == "PAUSA" else
                      f'<span class="c" title="chiusa">○{b["code"]}</span>' for b in board)
     parts.append(("lowest", f"borse {marks}"))
+    parts.append(("low", 'analisi a criteri fissi, non consulenza · <a href="./limiti" target="_self">metodo e limiti</a>'))
     st.html('<div class="qe-status">' + "".join(f'<span class="{c}">{h}</span>' for c, h in parts) + "</div>")
 
 

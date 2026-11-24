@@ -252,6 +252,9 @@ class WatchService(Service):
         table = table.sort_values(["_rank", "overall"], ascending=[True, False], na_position="last").drop(columns="_rank")
         alerts = self._alerts_to_watch(table)
         rows = table.drop(columns=["alerts"]).assign(alert_count=table["alerts"].map(len)).to_dict("records")
+        spark = ctx.sparklines([r["ticker"] for r in rows])
+        for r in rows:
+            r["spark"] = spark.get(r["ticker"])
         return {**out, "rows": rows, "alerts": alerts, "suggestions": []}
 
     def alert_history(self, state: str = "attivi", limit: int = 500) -> list[dict]:

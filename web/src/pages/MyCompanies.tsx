@@ -1,6 +1,8 @@
 // Le mie aziende: per ogni azienda seguita giudizio e pilastri, prezzo, il tuo fair value e la tua soglia con i
 // margini, gli avvisi. Sopra, gli avvisi da guardare; se non segui nulla, le prime «Candidate» da cui cominciare.
 // Tutto dall'API (servizio watch): qui solo disegno, ordinamento della tabella e azioni (segui, togli, visti).
+import { GetStarted } from "../components/Onboarding";
+import { Spark } from "../components/Spark";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -8,6 +10,7 @@ import { VerdictBadge } from "../components/verdict";
 import { Badge, Card, Empty, Num, Segmented, Skeleton, type Tone } from "../components/ui";
 import { api, type AlertItem, type CompanyRow, type MyCompanies, type WatchRow } from "../lib/api";
 import { fmt, type Kind } from "../lib/fmt";
+import { t, tn } from "../lib/i18n";
 
 type Col = { key: keyof WatchRow; label: string; kind?: Kind; change?: boolean; signed?: boolean; help?: string };
 const NUMBER_COLS: Col[] = [
@@ -28,10 +31,10 @@ const PILLARS: { key: keyof WatchRow; label: string }[] = [
 ];
 
 function MiniBar({ v, label }: { v: number | null; label: string }) {
-  if (v === null || v === undefined) return <span className="na" title={`${label}: dati insufficienti`}>–</span>;
+  if (v === null || v === undefined) return <span className="na" title={t("{label}: dati insufficienti", { label })}>–</span>;
   const tone = v >= 0.75 ? "pos" : v < 0.25 ? "neg" : "";
   return (
-    <span className="mini" title={`${label}: ${fmt(v, "score")} su 1`}>
+    <span className="mini" title={t("{label}: {v} su 1", { label, v: fmt(v, "score") })}>
       <span className={`bar ${tone}`}><i style={{ width: `${Math.max(0, Math.min(1, v)) * 100}%` }} /></span>
       <span>{fmt(v, "score")}</span>
     </span>
@@ -53,16 +56,16 @@ function AddCompany({ following }: { following: Set<string> }) {
   return (
     <div className="add-company">
       <div className="search">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Aggiungi un'azienda: ticker o nome"
-          aria-label="Aggiungi un'azienda" style={{ paddingLeft: 12 }} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Aggiungi un'azienda: ticker o nome")}
+          aria-label={t("Aggiungi un'azienda")} style={{ paddingLeft: 12 }} />
       </div>
       {results.length > 0 && (
         <ul className="pick">
           {results.map((r) => (
             <li key={r.ticker}>
               <span><b>{r.ticker}</b> <span className="honest">{r.name}</span></span>
-              {following.has(r.ticker) ? <span className="honest">già seguita</span> : (
-                <button type="button" className="btn" disabled={follow.isPending} onClick={() => follow.mutate(r.ticker)}>☆ Segui</button>
+              {following.has(r.ticker) ? <span className="honest">{t("già seguita")}</span> : (
+                <button type="button" className="btn" disabled={follow.isPending} onClick={() => follow.mutate(r.ticker)}>☆ {t("Segui")}</button>
               )}
             </li>
           ))}
@@ -82,9 +85,9 @@ function Alerts({ alerts, rows }: { alerts: AlertItem[]; rows: WatchRow[] }) {
   const verdicts = Object.fromEntries(rows.map((r) => [r.ticker, r]));
   let last = "";
   return (
-    <Card title="Da guardare" right={alerts.length ? `${alerts.length} avvisi${unseen.length ? ` · ${unseen.length} non visti` : ""}` : undefined}>
+    <Card title={t("Da guardare")} right={alerts.length ? `${tn(alerts.length, "{n} avviso", "{n} avvisi")}${unseen.length ? ` · ${t("{n} non visti", { n: unseen.length })}` : ""}` : undefined}>
       {alerts.length === 0 ? (
-        <p className="honest" style={{ margin: 0 }}>Nessun avviso: niente bilanci nuovi, movimenti forti, prezzi sotto le tue soglie o vicini al tuo fair value.</p>
+        <p className="honest" style={{ margin: 0 }}>{t("Nessun avviso: niente bilanci nuovi, movimenti forti, prezzi sotto le tue soglie o vicini al tuo fair value.")}</p>
       ) : (
         <div className="alerts">
           {alerts.map((a, i) => {
@@ -93,12 +96,12 @@ function Alerts({ alerts, rows }: { alerts: AlertItem[]; rows: WatchRow[] }) {
             const r = verdicts[a.ticker];
             return (
               <div key={`${a.ticker}-${a.code}-${i}`} className={`alert${a.unseen ? " new" : ""}${first && i ? " first" : ""}`}>
-                <span className="dot" title={a.unseen ? "non visto" : undefined}>{a.unseen ? "●" : ""}</span>
+                <span className="dot" title={a.unseen ? t("non visto") : undefined}>{a.unseen ? "●" : ""}</span>
                 <span className="tk">{first && <Link to={`/azienda/${encodeURIComponent(a.ticker)}`}>{a.ticker}</Link>}</span>
                 <span className="vb">{first && r?.category && <VerdictBadge category={r.category} label={r.verdict ?? undefined} />}</span>
                 <Badge tone={(a.tone as Tone) || "neutral"}>{a.code}</Badge>
                 <span className="msg" title={a.message}>{a.message}</span>
-                <span className="age">{a.computed ? "adesso" : a.created_at ? fmt(a.created_at, "date_short") : ""}</span>
+                <span className="age">{a.computed ? t("adesso") : a.created_at ? fmt(a.created_at, "date_short") : ""}</span>
               </div>
             );
           })}
@@ -106,7 +109,7 @@ function Alerts({ alerts, rows }: { alerts: AlertItem[]; rows: WatchRow[] }) {
       )}
       {unseen.length > 0 && (
         <div className="actions">
-          <button type="button" className="btn" disabled={seen.isPending} onClick={() => seen.mutate(unseen)}>Segna come visti ({unseen.length})</button>
+          <button type="button" className="btn" disabled={seen.isPending} onClick={() => seen.mutate(unseen)}>{t("Segna come visti ({n})", { n: unseen.length })}</button>
         </div>
       )}
     </Card>
@@ -118,15 +121,15 @@ function History() {
   const q = useQuery({ queryKey: ["alerts", state], queryFn: () => api<{ alerts: AlertItem[] }>(`/alerts?state=${state}`) });
   return (
     <details className="card details">
-      <summary>Storico degli avvisi</summary>
-      <Segmented label="Stato degli avvisi" value={state} onChange={setState}
-        options={[{ value: "attivi", label: "Attivi" }, { value: "non_visti", label: "Non visti" }, { value: "chiusi", label: "Chiusi" }, { value: "tutti", label: "Tutti" }]} />
+      <summary>{t("Storico degli avvisi")}</summary>
+      <Segmented label={t("Stato degli avvisi")} value={state} onChange={setState}
+        options={[{ value: "attivi", label: t("Attivi") }, { value: "non_visti", label: t("Non visti") }, { value: "chiusi", label: t("Chiusi") }, { value: "tutti", label: t("Tutti") }]} />
       {q.isPending ? <Skeleton height={80} /> : (q.data?.alerts.length ?? 0) === 0 ? (
-        <p className="honest">Nessun avviso in questo stato.</p>
+        <p className="honest">{t("Nessun avviso in questo stato.")}</p>
       ) : (
         <div className="table-wrap" style={{ marginTop: 10 }}>
           <table className="dense">
-            <thead><tr><th>Data</th><th>Ticker</th><th>Codice</th><th>Messaggio</th><th>Stato</th><th>Visto</th></tr></thead>
+            <thead><tr><th>{t("Data")}</th><th>{t("Ticker")}</th><th>{t("Codice")}</th><th>{t("Messaggio")}</th><th>{t("Stato")}</th><th>{t("Visto")}</th></tr></thead>
             <tbody>
               {q.data!.alerts.map((a) => (
                 <tr key={a.id ?? `${a.ticker}-${a.code}`}>
@@ -134,8 +137,8 @@ function History() {
                   <td><Link to={`/azienda/${encodeURIComponent(a.ticker)}`}><b>{a.ticker}</b></Link></td>
                   <td><Badge tone={(a.tone as Tone) || "neutral"}>{a.code}</Badge></td>
                   <td className="wrap">{a.message}</td>
-                  <td>{a.cleared_at ? `chiuso il ${fmt(a.cleared_at, "date_short")}` : "attivo"}</td>
-                  <td>{a.seen_at ? `sì, ${fmt(a.seen_at, "date_short")}` : <span className="info">● no</span>}</td>
+                  <td>{a.cleared_at ? t("chiuso il {date}", { date: fmt(a.cleared_at, "date_short") }) : t("attivo")}</td>
+                  <td>{a.seen_at ? t("sì, {date}", { date: fmt(a.seen_at, "date_short") }) : <span className="info">● {t("no")}</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -182,41 +185,25 @@ export function MyCompaniesPage() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Le mie aziende</h1>
-          {q.data && q.data.count > 0 && <p className="lead">{q.data.count} {q.data.count === 1 ? "azienda" : "aziende"} · prezzi al {fmt(q.data.as_of, "date")}</p>}
+          <h1>{t("Le mie aziende")}</h1>
+          {q.data && q.data.count > 0 && <p className="lead">{tn(q.data.count, "{n} azienda", "{n} aziende")} · {t("prezzi al {date}", { date: fmt(q.data.as_of, "date") })}</p>}
         </div>
         <AddCompany following={following} />
       </div>
-      {q.isPending ? <Skeleton height={260} /> : q.isError ? <Empty what="Pagina non disponibile" why={q.error.message} /> : q.data.count === 0 ? (
-        <>
-          <Empty what="Non segui ancora nessuna azienda"
-            why="Qui trovi, per ogni azienda che segui, il giudizio sintetico, il prezzo, il margine sul tuo fair value e sulla tua soglia d'acquisto, e gli avvisi (nuovi bilanci, prezzo sotto la soglia, movimenti forti, margini in calo)." />
-          {q.data.suggestions.length > 0 && (
-            <Card title="Per cominciare" right="le prime «Candidate» dell'S&P 500 per punteggio">
-              <p className="honest" style={{ marginTop: 0 }}>Il giudizio è una sintesi di criteri fissi, non una raccomandazione.</p>
-              <div className="suggest">
-                {q.data.suggestions.map((s) => (
-                  <div key={s.ticker} className="suggest-item">
-                    <Link to={`/azienda/${encodeURIComponent(s.ticker)}`}><b>{s.ticker}</b></Link> <span className="honest">{s.name}</span>
-                    <button type="button" className="btn" disabled={follow.isPending} onClick={() => follow.mutate({ t: s.ticker, on: true })}>☆ Segui</button>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-        </>
+      {q.isPending ? <Skeleton height={260} /> : q.isError ? <Empty what={t("Pagina non disponibile")} why={q.error.message} /> : q.data.count === 0 ? (
+        <Card title={t("Per cominciare")}><GetStarted /></Card>
       ) : (
         <>
           <Alerts alerts={q.data.alerts} rows={q.data.rows} />
-          <Card title="Le tue aziende" right={rows.length >= 2 ? <Link to={`/confronta?t=${rows.slice(0, 5).map((r) => r.ticker).join(",")}`}>Confronta {rows.length > 5 ? "le prime 5" : "tutte"} →</Link> : "clic sulle intestazioni per ordinare"}>
+          <Card title={t("Le tue aziende")} right={rows.length >= 2 ? <Link to={`/confronta?t=${rows.slice(0, 5).map((r) => r.ticker).join(",")}`}>{rows.length > 5 ? t("Confronta le prime 5") : t("Confronta tutte")} →</Link> : t("clic sulle intestazioni per ordinare")}>
             <div className="table-wrap">
               <table className="dense watch">
                 <thead>
                   <tr>
-                    {th("ticker", "Ticker")}{th("name", "Azienda")}{th("verdict_rank", "Giudizio", false, "Sintesi dei criteri: non è una raccomandazione")}
-                    {PILLARS.map((p) => th(p.key, p.label, true))}
-                    {NUMBER_COLS.map((c) => th(c.key, c.label, true, c.help))}
-                    {th("alert_count", "Avvisi", true)}<th aria-label="Azioni" />
+                    {th("ticker", t("Ticker"))}{th("name", t("Azienda"))}<th>{t("1 anno")}</th>{th("verdict_rank", t("Giudizio"), false, t("Sintesi dei criteri fissi della scheda"))}
+                    {PILLARS.map((p) => th(p.key, t(p.label), true))}
+                    {NUMBER_COLS.map((c) => th(c.key, t(c.label), true, c.help ? t(c.help) : undefined))}
+                    {th("alert_count", t("Avvisi"), true)}<th aria-label={t("Azioni sulla riga")} />
                   </tr>
                 </thead>
                 <tbody>
@@ -224,8 +211,9 @@ export function MyCompaniesPage() {
                     <tr key={r.ticker}>
                       <td><Link to={`/azienda/${encodeURIComponent(r.ticker)}`}><b>{r.ticker}</b></Link></td>
                       <td className="nm">{r.name}</td>
+                      <td className="spark-cell"><Spark values={r.spark} /></td>
                       <td>{r.category ? <VerdictBadge category={r.category} label={r.verdict ?? undefined} /> : <span className="na">–</span>}</td>
-                      {PILLARS.map((p) => <td key={p.key} className="n"><MiniBar v={r[p.key] as number | null} label={p.label} /></td>)}
+                      {PILLARS.map((p) => <td key={p.key} className="n"><MiniBar v={r[p.key] as number | null} label={t(p.label)} /></td>)}
                       {NUMBER_COLS.map((c) => (
                         <td key={c.key} className="n">
                           <Num v={r[c.key]} kind={c.kind} change={c.change} signed={c.signed}
@@ -234,7 +222,7 @@ export function MyCompaniesPage() {
                       ))}
                       <td className="n">{r.alert_count ? <Badge tone="warn">{r.alert_count}</Badge> : <span className="na">–</span>}</td>
                       <td className="n">
-                        <button type="button" className="btn ghost" title={`Togli ${r.ticker} dalle tue aziende`} aria-label={`Togli ${r.ticker}`}
+                        <button type="button" className="btn ghost" title={t("Togli {ticker} dalle tue aziende", { ticker: r.ticker })} aria-label={t("Togli {ticker}", { ticker: r.ticker })}
                           disabled={follow.isPending} onClick={() => follow.mutate({ t: r.ticker, on: false })}>✕</button>
                       </td>
                     </tr>
@@ -242,7 +230,7 @@ export function MyCompaniesPage() {
                 </tbody>
               </table>
             </div>
-            <p className="honest">Prezzi {rows.some((r) => r.currency !== "USD") ? "nella valuta di ogni azienda" : "in dollari"}. Il giudizio si legge nella scheda, con le prove una per una.</p>
+            <p className="honest">{rows.some((r) => r.currency !== "USD") ? t("Prezzi nella valuta di ogni azienda.") : t("Prezzi in dollari.")} {t("Il giudizio si legge nella scheda, con le prove una per una.")}</p>
           </Card>
           <History />
         </>

@@ -19,6 +19,17 @@ sys.path.insert(0, str(ROOT))
 
 TOKENS_CSS = ROOT / "web" / "src" / "styles" / "tokens.css"
 FMT_CASES = ROOT / "web" / "src" / "lib" / "fmt_cases.json"
+COMMANDS = ROOT / "web" / "src" / "lib" / "commands.json"
+
+
+def commands_json() -> str:
+    """Funzioni della scheda e pagine del motore dei comandi (modules/commands.py): il web ne mappa ognuna su un
+    indirizzo e un test (vitest) fallisce se ne manca una."""
+    from modules import commands
+
+    data = {"functions": [{"code": c, "label": lab} for c, lab in commands.FUNCTIONS],
+            "pages": [{"page": pg, "words": list(words)} for pg, words in commands.PAGES.items()]}
+    return json.dumps(data, ensure_ascii=False, indent=1) + "\n"
 
 
 def tokens_css() -> str:
@@ -45,24 +56,36 @@ def fmt_cases() -> list[dict]:
     from modules.formats import fmt
 
     cases = []
+    for lang in ("it", "en"):
+        cases += _fmt_cases(fmt, lang)
+    return cases
+
+
+def _fmt_cases(fmt_, lang: str) -> list[dict]:
+    """Casi in una lingua; "lang" compare nelle opzioni solo per l'inglese (l'italiano è il predefinito)."""
+    extra = {"lang": lang} if lang != "it" else {}
+    fmt = lambda v, kind, **o: fmt_(v, kind, **o, **extra)  # noqa: E731
+    cases = []
     for kind in ("num", "int", "price", "pct", "pp", "mult", "score", "money", "shares"):
         for v in VALUES:
             pv = float(v) if v in ("nan", "inf") else v
             for opt in OPTIONS:
-                cases.append({"v": v, "kind": kind, "opt": opt, "out": fmt(pv, kind, **opt)})
+                cases.append({"v": v, "kind": kind, "opt": {**opt, **extra}, "out": fmt(pv, kind, **opt)})
         if kind in ("money", "price", "num", "int"):
             for cur in CURRENCIES[1:]:
                 for v in (1234.5, 6.63e10, -12.3, None):
-                    cases.append({"v": v, "kind": kind, "opt": {"currency": cur}, "out": fmt(v, kind, currency=cur)})
+                    cases.append({"v": v, "kind": kind, "opt": {"currency": cur, **extra},
+                                  "out": fmt(v, kind, currency=cur)})
     for v in ("2026-11-23", "2026-01-05T10:30:00", None, 12, "non una data"):
         for kind in ("date", "date_short", "text"):
-            cases.append({"v": v, "kind": kind, "opt": {}, "out": fmt(v, kind)})
+            cases.append({"v": v, "kind": kind, "opt": dict(extra), "out": fmt(v, kind)})
     return cases
 
 
 def expected() -> dict[Path, str]:
     return {TOKENS_CSS: tokens_css(),
-            FMT_CASES: json.dumps(fmt_cases(), ensure_ascii=False, indent=1) + "\n"}
+            FMT_CASES: json.dumps(fmt_cases(), ensure_ascii=False, indent=1) + "\n",
+            COMMANDS: commands_json()}
 
 
 def main(argv=None) -> int:

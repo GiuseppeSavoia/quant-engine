@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, Empty, Skeleton } from "../components/ui";
 import { api, type CompanyRow } from "../lib/api";
+import { t } from "../lib/i18n";
 
 export function CompaniesPage() {
   const [filter, setFilter] = useState("");
@@ -15,21 +16,21 @@ export function CompaniesPage() {
   }, [q.data, filter]);
   return (
     <div className="page">
-      <h1>Aziende</h1>
-      <p className="lead">Apri la scheda di un'azienda per vedere il giudizio, le prove e i numeri chiave.</p>
-      <Card title="Elenco" right={q.data ? `${rows.length} su ${q.data.total}` : undefined}>
+      <h1>{t("Aziende")}</h1>
+      <p className="lead">{t("Apri la scheda di un'azienda per vedere il giudizio, le prove e i numeri chiave.")}</p>
+      <Card title={t("Elenco")} right={q.data ? t("{n} su {total}", { n: rows.length, total: q.data.total }) : undefined}>
         <div className="search" style={{ maxWidth: 360, marginBottom: 12 }}>
-          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filtra per ticker, nome o settore"
-            aria-label="Filtra le aziende" style={{ paddingLeft: 12 }} />
+          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("Filtra per ticker, nome o settore")}
+            aria-label={t("Filtra le aziende")} style={{ paddingLeft: 12 }} />
         </div>
         {q.isPending ? <Skeleton height={220} /> : q.isError ? (
-          <Empty what="Elenco non disponibile" why={q.error.message} />
+          <Empty what={t("Elenco non disponibile")} why={q.error.message} />
         ) : rows.length === 0 ? (
-          <Empty what="Nessuna azienda" why="Nessuna azienda corrisponde al filtro." />
+          <Empty what={t("Nessuna azienda")} why={t("Nessuna azienda corrisponde al filtro.")} />
         ) : (
           <div className="table-wrap">
             <table className="dense">
-              <thead><tr><th>Ticker</th><th>Azienda</th><th>Settore</th><th>Universo</th></tr></thead>
+              <thead><tr><th>{t("Ticker")}</th><th>{t("Azienda")}</th><th>{t("Settore")}</th><th>{t("Universo")}</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.ticker}>

@@ -370,8 +370,8 @@ def _positions(d, view: dict, pos: pd.DataFrame, etfs: set[str]) -> None:
             "value_eur": ("Valore €", "num", {"digits": 0}), "weight": ("Peso", "pct"),
             "gain_eur": ("Guadagno €", "num", {"digits": 0, "signed": True}),
             "gain_pct": ("Guadagno %", "pct", {"arrow": True}), "verdetto": ("Giudizio", "html")})
-        st.caption("Giudizio: quello della scheda dell'azienda (solo per le azioni con dati; non è una "
-                   "raccomandazione). Il costo medio comprende le commissioni.")
+        st.caption("Giudizio: quello della scheda dell'azienda (solo per le azioni con dati). Il costo medio comprende "
+                   "le commissioni.")
     value = pos["value_eur"].sum()
     left, right = st.columns([1, 1.6])
     with left, C.panel("Composizione per settore e valuta"):

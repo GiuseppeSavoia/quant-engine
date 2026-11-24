@@ -4,6 +4,7 @@
 // serie, dettaglio al passaggio del mouse (e da tastiera: frecce sul grafico) con tutti i valori del periodo.
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { fmt } from "../lib/fmt";
+import { t } from "../lib/i18n";
 
 export interface Series { key: string; label: string; values: (number | null)[] }
 type Kind = "money" | "pct" | "shares" | "num" | "mult";
@@ -53,7 +54,7 @@ const tickText = (v: number, kind: Kind) =>
     : kind === "num" ? fmt(v, "num", { digits: Math.abs(v) < 10 ? 1 : 0 }) : kind === "mult" ? fmt(v, "mult", { digits: 0 })
     : fmt(v, "money", { digits: 0 });
 const valueText = (v: number | null, kind: Kind, currency?: string) =>
-  kind === "pct" ? fmt(v, "pct") : kind === "shares" ? `${fmt(v === null ? null : v / 1e6, "num", { digits: 1 })} mln`
+  kind === "pct" ? fmt(v, "pct") : kind === "shares" ? t("{v} mln", { v: fmt(v === null ? null : v / 1e6, "num", { digits: 1 }) })
     : kind === "num" ? fmt(v, "num") : kind === "mult" ? fmt(v, "mult") : fmt(v, "money", { currency });
 
 export function Legend({ series, colors }: { series: Series[]; colors?: number[] }) {

@@ -1,4 +1,4 @@
-"""Aspetto della webapp: Segui il sistema (predefinito), Scuro, Chiaro (ui/common.py, menu "Dati" in ui/shell.py)."""
+"""Aspetto della webapp: Scuro (predefinito dal 2026-11-24), Chiaro, Segui il sistema (ui/common.py, menu "Dati" in ui/shell.py)."""
 from __future__ import annotations
 
 import json
@@ -23,13 +23,13 @@ def prefs(tmp_path, monkeypatch):
 
 
 def test_appearance_default_legacy_and_saved(prefs):
-    assert common.appearance() == "sistema"                     # predefinito: come il Mac
+    assert common.appearance() == "scuro"                       # predefinito: l'aspetto del prodotto
     prefs.write_text('{"terminal": true}', encoding="utf-8")     # vecchio interruttore: scelta esplicita
     assert common.appearance() == "scuro"
     prefs.write_text('{"terminal": false}', encoding="utf-8")
     assert common.appearance() == "chiaro"
     prefs.write_text("illeggibile", encoding="utf-8")
-    assert common.appearance() == "sistema"
+    assert common.appearance() == "scuro"
     common.set_appearance("chiaro")
     assert json.loads(prefs.read_text(encoding="utf-8")) == {"aspetto": "chiaro"}
     assert common.st.session_state["ui_reload"] is True           # il browser applica il tema solo ricaricando
@@ -38,13 +38,14 @@ def test_appearance_default_legacy_and_saved(prefs):
 
 
 def test_system_scheme_from_cookie(prefs, monkeypatch):
+    common.set_appearance("sistema")
     monkeypatch.setattr(common.st, "context", SimpleNamespace(cookies={"qe_scheme": "light"}))
     assert common.system_scheme() == "light"
     assert common._terminal_wanted() is False                      # sistema + Mac chiaro
     monkeypatch.setattr(common.st, "context", SimpleNamespace(cookies={"qe_scheme": "dark"}))
     assert common._terminal_wanted() is True
     monkeypatch.setattr(common.st, "context", SimpleNamespace(cookies={"qe_scheme": "<script>"}))
-    assert common.system_scheme() is None and common._terminal_wanted() is False  # ignoto: chiaro, base del prodotto
+    assert common.system_scheme() is None and common._terminal_wanted() is True   # ignoto: scuro, l'aspetto del prodotto
     common.set_appearance("chiaro")                                # scelta fissa: il cookie non conta
     monkeypatch.setattr(common.st, "context", SimpleNamespace(cookies={"qe_scheme": "dark"}))
     assert common._terminal_wanted() is False
@@ -71,17 +72,17 @@ def test_apply_theme_switches_server_options():
     finally:
         common._apply_theme(True)
     assert st_config.get_option("theme.base") == "dark"
-    assert st_config.get_option("theme.backgroundColor") == "#000000"   # scuro di config.toml
+    assert st_config.get_option("theme.backgroundColor") == common.TOKENS_DARK["bg"]   # scuro di config.toml
 
 
 DEMO_DB = ROOT / "data" / "demo.db"
 
 
 @pytest.mark.skipif(not DEMO_DB.exists(), reason="manca data/demo.db (python main.py --demo)")
-@pytest.mark.parametrize("choice, dark", [("chiaro", False), ("scuro", True), ("sistema", False)])
+@pytest.mark.parametrize("choice, dark", [("chiaro", False), ("scuro", True), ("sistema", True)])
 def test_data_menu_selector(tmp_path, monkeypatch, choice, dark):
     """Nell'app: il selettore a tre voci mostra la scelta salvata accanto al database e il tema segue (con
-    "Segui il sistema" e nessun cookie, come nei test: chiaro); lo script del cookie solo con "Segui il sistema"."""
+    "Segui il sistema" e nessun cookie, come nei test: scuro); lo script del cookie solo con "Segui il sistema"."""
     import socket
 
     from streamlit import config as st_config

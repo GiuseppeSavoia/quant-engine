@@ -544,6 +544,13 @@ class DashboardData(AppData):
     def strategy_holdings(self, name: str) -> pd.DataFrame:
         return self.services.strategies.strategy_holdings(name)
 
+    # ------------------------------------------------------------------ minigrafici e striscia di mercato
+    def sparklines(self, tickers: list[str], weeks: int = 52) -> dict[str, list]:
+        return self.services.today.sparklines(tickers, weeks)
+
+    def market_strip(self) -> dict:
+        return self.services.today.market_strip()
+
     # ------------------------------------------------------------------ tavolo dei grandi investitori (solo informazione)
     def investor_panel(self, ticker: str) -> dict:
         return self.services.investor_panel.investor_panel(ticker)
